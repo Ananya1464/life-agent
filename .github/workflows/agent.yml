@@ -1,0 +1,67 @@
+name: Life Agent
+
+on:
+  schedule:
+    # GitHub cron is in UTC. IST = UTC+5:30.
+    - cron: "30 1 * * *"   # 07:00 IST — meal_plan
+    - cron: "30 2 * * *"   # 08:00 IST — ai_edge
+    - cron: "0 16 * * *"   # 21:30 IST — evening_checkin
+    - cron: "15 16 * * *"  # 21:45 IST — goal_planner
+    - cron: "30 16 * * *"  # 22:00 IST — tomorrow_planner
+    - cron: "45 16 * * *"  # 22:15 IST — set_reminders
+    - cron: "30 14 * * 0"  # 20:00 IST Sunday — weekly_review
+  workflow_dispatch:       # run any task manually from the Actions tab
+    inputs:
+      task:
+        description: "Task to run"
+        required: true
+        type: choice
+        options:
+          - meal_plan
+          - ai_edge
+          - evening_checkin
+          - goal_planner
+          - tomorrow_planner
+          - set_reminders
+          - weekly_review
+
+jobs:
+  run-task:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25  # deep research on the 8 AM run makes ~8 model calls
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Pick task from schedule
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "task=${{ inputs.task }}" >> "$GITHUB_OUTPUT"
+          else
+            case "${{ github.event.schedule }}" in
+              "30 1 * * *")  echo "task=meal_plan"        >> "$GITHUB_OUTPUT" ;;
+              "30 2 * * *")  echo "task=ai_edge"          >> "$GITHUB_OUTPUT" ;;
+              "0 16 * * *")  echo "task=evening_checkin"  >> "$GITHUB_OUTPUT" ;;
+              "15 16 * * *") echo "task=goal_planner"     >> "$GITHUB_OUTPUT" ;;
+              "30 16 * * *") echo "task=tomorrow_planner" >> "$GITHUB_OUTPUT" ;;
+              "45 16 * * *") echo "task=set_reminders"    >> "$GITHUB_OUTPUT" ;;
+              "30 14 * * 0") echo "task=weekly_review"    >> "$GITHUB_OUTPUT" ;;
+            esac
+          fi
+
+      - name: Run ${{ steps.pick.outputs.task }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ICAL_URL: ${{ secrets.ICAL_URL }}
+          REMINDERS_DB_ID: ${{ secrets.REMINDERS_DB_ID }}
+          LLM_PROVIDER: "gemini"
+        run: python main.py ${{ steps.pick.outputs.task }}
