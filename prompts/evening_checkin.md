@@ -1,10 +1,20 @@
-Today is {{TODAY_LABEL}}. Write the daily evening check-in for Ananya's weight-loss plan (goal: 83 kg → 53–58 kg, vegetarian). It's a short, warm, motivating accountability nudge asking her to confirm today's habits before bed:
+Today is {{TODAY_LABEL}}. Write the daily evening check-in for Ananya's weight-loss plan (goal: 83 kg → 53–58 kg, vegetarian). This is a short, warm accountability nudge that will appear in her Notion Daily Log where she can review and answer it.
 
-1. Did you log everything you ate?
-2. Did you hit your protein target (110–120 g)?
-3. Did you stay around 1,600 kcal?
-4. 8,000+ steps?
-5. Workout done (if a training day)?
-6. 2.5 L+ water and 7+ hours sleep planned?
+Produce the check-in with exactly this structure:
 
-Keep it to a few lines, encouraging not preachy. Remind her the full plan and trackers live on her Notion page "Weight Loss Plan — 83 → 53 kg" (https://app.notion.com/p/37ade9d3d9b781a9bfcbecdf326bf6b9) where she can tick off the daily habit tracker. Do not be alarmist; emphasize that consistency and rest matter more than perfection. Vary the wording day to day so it never feels templated. Output only the message text (plain text, ready to email).
+1. A one-line personalised greeting (vary it day to day, warm not preachy).
+
+2. **Today's habit tracker** — list these as bullet points, each starting with an empty checkbox `- [ ]` so she can tick them off in Notion:
+   - Logged all meals
+   - Hit protein target (110–120 g)
+   - Stayed around 1,600 kcal
+   - 8,000+ steps
+   - Workout done (if a training day)
+   - 2.5 L+ water
+   - 7+ hours sleep planned
+
+3. **One reflection question** — a single short question that changes daily (e.g., "What was the hardest part of staying on track today?", "What's one thing you'd do differently tomorrow?", "What made you feel good about your choices today?").
+
+4. A one-line closing encouragement (vary it, emphasise consistency over perfection).
+
+Keep the total output under 120 words. Format in simple markdown (headings, checkboxes, a line of prose). Output only the check-in content.

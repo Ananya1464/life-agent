@@ -31,6 +31,12 @@ NEW_ENTRY_BODY = """## 🌅 Your AI Edge
 
 ---
 
+## 🌙 Evening Check-in
+
+> Written at 9:30 PM — tick off your habits and reflect.
+
+---
+
 ## 🌙 Tomorrow's Plan
 
 {tomorrow_plan}
