@@ -34,6 +34,10 @@ DAILY_LOG_DATA_SOURCE_ID = os.getenv(
 WEIGHT_LOSS_PAGE_ID = os.getenv(
     "WEIGHT_LOSS_PAGE_ID", "37ade9d3d9b781a9bfcbecdf326bf6b9"
 )
+# "Evening Check-in" database
+EVENING_CHECKIN_DB_ID = os.getenv(
+    "EVENING_CHECKIN_DB_ID", "32758b21da4e420c9952aa3e1b130d4c"
+)
 
 # --- Email (Gmail SMTP with an App Password) ---
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS", "ananyadubey1464@gmail.com")

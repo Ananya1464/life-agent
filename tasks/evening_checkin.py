@@ -1,5 +1,5 @@
 """~9:30 PM IST — weight-loss habit accountability check-in.
-Writes to today's Notion Daily Log entry under '🌙 Evening Check-in' and emails."""
+Writes to the dedicated Evening Check-in database in Notion and emails."""
 import dates
 import emailer
 import llm
@@ -13,17 +13,28 @@ def run():
     nudge = llm.generate(prompt, temperature=0.9)  # higher temp → varied wording
     print(nudge)
 
-    # Write to today's Notion Daily Log entry (primary delivery)
+    # Write to the dedicated Evening Check-in database (primary delivery)
+    try:
+        existing = notion_api.find_checkin_by_date(dates.iso(d))
+        if existing:
+            # Update today's existing entry
+            notion_api.replace_section(existing["id"], "Evening Check-in", nudge)
+            print("[notion] updated today's evening check-in entry.")
+        else:
+            # Create a new entry for today
+            notion_api.create_checkin_entry(
+                dates.day_label(d), dates.iso(d), nudge
+            )
+            print("[notion] created evening check-in entry.")
+    except Exception as e:
+        print(f"[notion] write failed (check-in still emailed/printed): {e}")
+
+    # Also write to the Daily Log (secondary — so tomorrow_planner can see it)
     try:
         entry = notion_api.find_entry_by_date(dates.iso(d))
         if entry:
             notion_api.replace_section(entry["id"], "🌙 Evening Check-in", nudge)
-            print("[notion] updated evening check-in section.")
-        else:
-            body = f"## 🌙 Evening Check-in\n\n{nudge}\n\n---\n"
-            notion_api.create_daily_entry(dates.day_label(d), dates.iso(d), body)
-            print("[notion] created today's entry with evening check-in.")
-    except Exception as e:
-        print(f"[notion] write failed (check-in still emailed/printed): {e}")
+    except Exception:
+        pass  # best-effort, the dedicated DB is the primary
 
     emailer.send(f"Evening check-in — {dates.day_label(d)} 🌙", nudge)

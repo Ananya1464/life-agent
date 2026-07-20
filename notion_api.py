@@ -181,3 +181,29 @@ def create_reminder_entry(title: str, remind_at_iso: str):
         },
     })
 
+
+# ---------------------------------------------------------------- evening check-in
+def create_checkin_entry(day_label: str, date_iso: str, body_md: str) -> str:
+    """Create a new row in the Evening Check-in database. Returns the page id."""
+    if not config.EVENING_CHECKIN_DB_ID:
+        return ""
+    page = _req("POST", "/pages", json={
+        "parent": {"database_id": config.EVENING_CHECKIN_DB_ID},
+        "properties": {
+            "Name": {"title": [{"text": {"content": f"🌙 {day_label}"}}]},
+            "Date": {"date": {"start": date_iso}},
+        },
+        "children": md_to_blocks(body_md),
+    })
+    return page["id"]
+
+
+def find_checkin_by_date(date_iso: str):
+    """Return the Evening Check-in entry for date_iso, or None."""
+    if not config.EVENING_CHECKIN_DB_ID:
+        return None
+    data = _req("POST", f"/databases/{config.EVENING_CHECKIN_DB_ID}/query",
+                json={"filter": {"property": "Date", "date": {"equals": date_iso}}})
+    results = data.get("results", [])
+    return results[0] if results else None
+

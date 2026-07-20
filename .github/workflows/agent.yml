@@ -64,5 +64,6 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           ICAL_URL: ${{ secrets.ICAL_URL }}
           REMINDERS_DB_ID: ${{ secrets.REMINDERS_DB_ID }}
+          EVENING_CHECKIN_DB_ID: ${{ secrets.EVENING_CHECKIN_DB_ID || '32758b21da4e420c9952aa3e1b130d4c' }}
           LLM_PROVIDER: "gemini"
         run: python main.py ${{ steps.pick.outputs.task }}
