@@ -192,6 +192,7 @@ def create_checkin_entry(day_label: str, date_iso: str, body_md: str) -> str:
         "properties": {
             "Name": {"title": [{"text": {"content": f"🌙 {day_label}"}}]},
             "Date": {"date": {"start": date_iso}},
+            "Energy Level": {"rich_text": [{"text": {"content": ""}}]},
         },
         "children": md_to_blocks(body_md),
     })
@@ -207,3 +208,29 @@ def find_checkin_by_date(date_iso: str):
     results = data.get("results", [])
     return results[0] if results else None
 
+
+# ---------------------------------------------------------------- ADHD tools
+def fetch_dopamine_menu_items() -> list[str]:
+    """Fetch all items from the Dopamine Menu database."""
+    if not config.DOPAMINE_MENU_DB_ID:
+        return []
+    data = _req("POST", f"/databases/{config.DOPAMINE_MENU_DB_ID}/query", json={})
+    items = []
+    for row in data.get("results", []):
+        name = get_prop_text(row, "Name")
+        if name:
+            items.append(name)
+    return items
+
+
+def write_brain_dump(content: str):
+    """Write a new entry to the Brain Dump database."""
+    if not config.BRAIN_DUMP_DB_ID:
+        return
+    _req("POST", "/pages", json={
+        "parent": {"database_id": config.BRAIN_DUMP_DB_ID},
+        "properties": {
+            "Name": {"title": [{"text": {"content": content[:50] + ("..." if len(content) > 50 else "")}}]},
+        },
+        "children": md_to_blocks(content),
+    })

@@ -15,7 +15,7 @@ import sys
 TASKS = (
     "meal_plan", "ai_edge", "evening_checkin",
     "goal_planner", "tomorrow_planner", "set_reminders",
-    "weekly_review",
+    "weekly_review", "unstick_me", "deep_work_session",
 )
 
 

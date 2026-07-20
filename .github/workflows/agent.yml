@@ -24,6 +24,8 @@ on:
           - tomorrow_planner
           - set_reminders
           - weekly_review
+          - unstick_me
+          - deep_work_session
 
 jobs:
   run-task:
@@ -65,5 +67,8 @@ jobs:
           ICAL_URL: ${{ secrets.ICAL_URL }}
           REMINDERS_DB_ID: ${{ secrets.REMINDERS_DB_ID }}
           EVENING_CHECKIN_DB_ID: ${{ secrets.EVENING_CHECKIN_DB_ID || '32758b21da4e420c9952aa3e1b130d4c' }}
+          DOPAMINE_MENU_DB_ID: ${{ secrets.DOPAMINE_MENU_DB_ID }}
+          BRAIN_DUMP_DB_ID: ${{ secrets.BRAIN_DUMP_DB_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           LLM_PROVIDER: "gemini"
         run: python main.py ${{ steps.pick.outputs.task }}

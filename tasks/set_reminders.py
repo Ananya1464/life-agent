@@ -13,8 +13,8 @@ _TIME_RE = re.compile(
 
 
 def run():
-    if not config.REMINDERS_DB_ID:
-        print("[reminders] REMINDERS_DB_ID not set — skipping.")
+    if not config.NTFY_TOPIC:
+        print("[reminders] NTFY_TOPIC not set — skipping.")
         return
 
     tmrw = dates.tomorrow()
@@ -42,17 +42,38 @@ def run():
         print("[reminders] no time-blocked items found in plan.")
         return
 
-    # STEP 3 — create reminders
+    # STEP 3 — create ntfy reminders
+    import requests
+    from datetime import datetime, timezone, timedelta
+    
     created = 0
+    ist = timezone(timedelta(hours=5, minutes=30))
+    
     for time_str, description in items:
         # Normalise "6:30" → "06:30"
         hh, mm = time_str.split(":")
         iso_dt = f"{dates.iso(tmrw)}T{int(hh):02d}:{mm}:00"
         title = description.strip().rstrip("*").strip()
+        
+        dt = datetime.fromisoformat(iso_dt).replace(tzinfo=ist)
+        unix_ts = int(dt.timestamp())
+        
+        # Add a 5 minute advance warning
+        unix_ts_warning = unix_ts - 300
+        
         try:
-            notion_api.create_reminder_entry(title, iso_dt)
+            requests.post(
+                f"https://ntfy.sh/{config.NTFY_TOPIC}",
+                data=f"{time_str} - {title}".encode('utf-8'),
+                headers={
+                    "Title": "Life Agent 🧠 Next Task",
+                    "Delay": str(unix_ts_warning),
+                    "Tags": "calendar_spiral"
+                },
+                timeout=10
+            )
             created += 1
         except Exception as e:
             print(f"[reminders] failed creating reminder for {time_str}: {e}")
 
-    print(f"[reminders] created {created}/{len(items)} reminders for {dates.day_label(tmrw)}.")
+    print(f"[reminders] scheduled {created}/{len(items)} push notifications via ntfy for {dates.day_label(tmrw)}.")

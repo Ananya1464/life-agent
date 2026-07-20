@@ -38,6 +38,10 @@ WEIGHT_LOSS_PAGE_ID = os.getenv(
 EVENING_CHECKIN_DB_ID = os.getenv(
     "EVENING_CHECKIN_DB_ID", "32758b21da4e420c9952aa3e1b130d4c"
 )
+# "Dopamine Menu" database
+DOPAMINE_MENU_DB_ID = os.getenv("DOPAMINE_MENU_DB_ID", "")
+# "Brain Dump" database
+BRAIN_DUMP_DB_ID = os.getenv("BRAIN_DUMP_DB_ID", "")
 
 # --- Email (Gmail SMTP with an App Password) ---
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS", "ananyadubey1464@gmail.com")
@@ -46,11 +50,11 @@ GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")  # empty = skip email s
 # --- Google Calendar (optional, secret iCal URL — read-only, no OAuth) ---
 ICAL_URL = os.getenv("ICAL_URL", "")
 
-# --- Notion Reminders database (optional — set up via GITHUB_SETUP.md) ---
+# Push Notifications (ntfy.sh)
+NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
+
+# --- Reminders (optional Notion database for time-blocked reminders) ---
 REMINDERS_DB_ID = os.getenv("REMINDERS_DB_ID", "")
 
 # --- Timezone ---
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
-
-# --- Reminders (optional Notion database for time-blocked reminders) ---
-REMINDERS_DB_ID = os.getenv("REMINDERS_DB_ID", "")

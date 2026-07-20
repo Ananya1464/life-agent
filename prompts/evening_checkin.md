@@ -4,7 +4,9 @@ Produce the check-in with exactly this structure:
 
 1. A one-line personalised greeting (vary it day to day, warm not preachy).
 
-2. **Today's habit tracker** — list these as bullet points, each starting with an empty checkbox `- [ ]` so she can tick them off in Notion:
+2. **Tomorrow's Energy Level** — add a line reminding her: "Don't forget to set the **Energy Level** property at the top of this page (🔋 High / 🪫 Low) so I know how to plan tomorrow for you!"
+
+3. **Today's habit tracker** — list these as bullet points, each starting with an empty checkbox `- [ ]` so she can tick them off in Notion:
    - Logged all meals
    - Hit protein target (110–120 g)
    - Stayed around 1,600 kcal
@@ -13,8 +15,8 @@ Produce the check-in with exactly this structure:
    - 2.5 L+ water
    - 7+ hours sleep planned
 
-3. **One reflection question** — a single short question that changes daily (e.g., "What was the hardest part of staying on track today?", "What's one thing you'd do differently tomorrow?", "What made you feel good about your choices today?").
+4. **One reflection question** — a single short question that changes daily (e.g., "What was the hardest part of staying on track today?", "What's one thing you'd do differently tomorrow?", "What made you feel good about your choices today?").
 
-4. A one-line closing encouragement (vary it, emphasise consistency over perfection).
+5. A one-line closing encouragement (vary it, emphasise consistency over perfection).
 
-Keep the total output under 120 words. Format in simple markdown (headings, checkboxes, a line of prose). Output only the check-in content.
+Keep the total output under 140 words. Format in simple markdown (headings, checkboxes, a line of prose). Output only the check-in content.

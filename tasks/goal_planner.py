@@ -32,6 +32,7 @@ def _completion_stats(days: int = 7) -> str:
 
 
 def run():
+    import random
     today, tmrw = dates.today(), dates.tomorrow()
 
     # STEP 1 — read goals from today's entry
@@ -55,6 +56,26 @@ def run():
     events = calendar_feed.events_on(tmrw)
     cal_text = "; ".join(events) if events else "(none / calendar not connected)"
     stats = _completion_stats()
+    
+    # ADHD Context: Energy Level
+    energy_level = "Unknown (Assume normal)"
+    try:
+        checkin_entry = notion_api.find_checkin_by_date(dates.iso(today))
+        if checkin_entry:
+            val = notion_api.get_prop_text(checkin_entry, "Energy Level")
+            if val:
+                energy_level = val.strip()
+    except Exception as e:
+        print(f"[notion] could not fetch energy level: {e}")
+        
+    # ADHD Context: Dopamine Menu
+    dopamine_items = "(No items configured)"
+    try:
+        all_dopamine = notion_api.fetch_dopamine_menu_items()
+        if all_dopamine:
+            dopamine_items = "\n".join("- " + item for item in random.sample(all_dopamine, min(3, len(all_dopamine))))
+    except Exception as e:
+        print(f"[notion] could not fetch dopamine menu: {e}")
 
     # STEP 3 — generate the plan
     prompt = prompt_loader.load(
@@ -64,6 +85,8 @@ def run():
         CALENDAR_EVENTS=cal_text,
         RECENT_COMPLETION_STATS=stats,
         ACHIEVEMENTS_TODAY=achievements_today,
+        ENERGY_LEVEL=energy_level,
+        DOPAMINE_MENU=dopamine_items,
     )
     plan = llm.generate(prompt)
 
@@ -71,12 +94,12 @@ def run():
     plan = quality.critique_and_revise(
         plan,
         checklist=(
-            "- Under 300 words, time-blocked from 6 AM to 11 PM\n"
-            "- Every goal from the input appears in the schedule (or marked "
-            "'already done')\n"
-            "- No time-block overlaps a calendar event\n"
-            "- Includes meals, breaks, and a confidence score\n"
-            "- Priority order: courses > outreach > applications > personal"
+            "- Every goal broken down into 15-20m physical micro-steps\n"
+            "- 30% time padding applied to all blocks\n"
+            "- 30m Context-Switch Reset blocks between major category shifts\n"
+            "- Explicit dopamine menu items scheduled instead of generic breaks\n"
+            "- High contrast visual formatting (emoji, bold main physical actions)\n"
+            "- If Energy is Low, 50% non-essential goals dropped"
         ),
     )
     print(plan)
