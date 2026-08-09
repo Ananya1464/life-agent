@@ -1,16 +1,9 @@
 """Entry point. Run one task:  python main.py <task>
-
-Tasks:
-  meal_plan         ~7:00 AM IST  — vegetarian fat-loss meal plan → email + Weight Loss page
-  ai_edge           ~8:00 AM IST  — web-researched AI briefing → Notion Daily Log
-  evening_checkin   ~9:30 PM IST  — habit accountability nudge → email
-  goal_planner      ~9:45 PM IST  — goals → time-blocked plan for tomorrow → Notion + email
-  tomorrow_planner  ~10:00 PM IST — adaptive plan for tomorrow → Notion Daily Log
-  set_reminders     ~10:15 PM IST — parse tomorrow's plan → Notion reminders → phone push
-  weekly_review     Sun ~8:00 PM  — 7-day performance review → Notion + email
+Or run self-test:              python main.py --selftest
 """
 import importlib
 import sys
+from datetime import datetime
 
 TASKS = (
     "meal_plan", "ai_edge", "evening_checkin",
@@ -26,7 +19,30 @@ def run(task: str):
     mod.run()
 
 
+def selftest():
+    import emailer
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    subject = f"life-agent selftest {timestamp}"
+    body = f"This is a self-test email from life-agent sent at {timestamp}."
+    emailer.send_email(subject, body, debug=True)
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    run(sys.argv[1])
+
+    arg = sys.argv[1]
+    if arg == "--selftest":
+        try:
+            selftest()
+            sys.exit(0)
+        except Exception as e:
+            print(f"Selftest failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        run(arg)
+    except Exception as e:
+        print(f"Task failed: {e}", file=sys.stderr)
+        sys.exit(1)
+

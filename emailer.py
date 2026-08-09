@@ -1,25 +1,27 @@
-"""Send email to Ananya via Gmail SMTP (App Password). Fails silently by design —
-Notion is the source of truth; email is a convenience."""
+"""Send email to Ananya via Gmail SMTP (App Password). Fails loudly if delivery fails."""
 import smtplib
 from email.mime.text import MIMEText
 
 import config
 
 
-def send(subject: str, body_markdown: str) -> bool:
-    if not config.GMAIL_APP_PASSWORD:
-        print("[email] GMAIL_APP_PASSWORD not set — skipping email.")
-        return False
-    try:
-        msg = MIMEText(body_markdown, "plain", "utf-8")
-        msg["Subject"] = subject
-        msg["From"] = config.GMAIL_ADDRESS
-        msg["To"] = config.GMAIL_ADDRESS
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
-            s.login(config.GMAIL_ADDRESS, config.GMAIL_APP_PASSWORD)
-            s.send_message(msg)
-        print(f"[email] sent: {subject}")
-        return True
-    except Exception as e:  # never let email failure kill a run
-        print(f"[email] failed (continuing): {e}")
-        return False
+def send_email(subject: str, body_markdown: str, debug: bool = False) -> None:
+    if not config.GMAIL_ADDRESS or not config.GMAIL_APP_PASSWORD:
+        raise ValueError("GMAIL_ADDRESS or GMAIL_APP_PASSWORD not configured")
+
+    msg = MIMEText(body_markdown, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = config.GMAIL_ADDRESS
+    msg["To"] = config.GMAIL_ADDRESS
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
+        if debug:
+            s.set_debuglevel(1)
+        s.login(config.GMAIL_ADDRESS, config.GMAIL_APP_PASSWORD)
+        s.send_message(msg)
+    print(f"[email] sent: {subject}")
+
+
+# Alias send to send_email so existing tasks fail loudly too
+send = send_email
+

@@ -1,5 +1,9 @@
 name: Life Agent
 
+concurrency:
+  group: life-agent
+  cancel-in-progress: false
+
 on:
   schedule:
     # GitHub cron is in UTC. IST = UTC+5:30.
@@ -30,6 +34,8 @@ on:
 jobs:
   run-task:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 25  # deep research on the 8 AM run makes ~8 model calls
     steps:
       - uses: actions/checkout@v4
@@ -72,3 +78,14 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           LLM_PROVIDER: "gemini"
         run: python main.py ${{ steps.pick.outputs.task }}
+
+      - name: Commit and push changes
+        run: |
+          if ! git diff --quiet data/events.jsonl; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add data/events.jsonl
+            git commit -m "chore: update events.jsonl [skip ci]"
+            git push || (git pull --rebase && git push)
+          fi
+

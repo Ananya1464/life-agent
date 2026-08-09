@@ -73,7 +73,7 @@ def _retry(fn, *args, **kwargs):
 def _call_claude(model, prompt, web_search, temperature, think):
     import anthropic
 
-    client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+    client = anthropic.Anthropic(timeout=30.0)  # reads ANTHROPIC_API_KEY
     kwargs = {
         "model": model,
         "max_tokens": 8192 + (THINKING_BUDGET if think else 0),
@@ -114,7 +114,10 @@ def _generate_gemini(prompt, web_search, temperature, think):
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    client = genai.Client(
+        api_key=config.GEMINI_API_KEY,
+        http_options=types.HttpOptions(timeout=30_000)
+    )
     cfg_kwargs = {"temperature": temperature}
     if SYSTEM_PROMPT:
         cfg_kwargs["system_instruction"] = SYSTEM_PROMPT
