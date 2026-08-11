@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life OS Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #fcfcfc;
+            --surface-color: #ffffff;
+            --text-main: #2d3748;
+            --text-muted: #718096;
+            --border-color: #e2e8f0;
+            --accent-color: #4a5568;
+            --success-color: #48bb78;
+            --bar-bg: #edf2f7;
+            --bar-fill: #4a5568;
+            --radius: 12px;
+            --spacing: 24px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #111111;
+                --surface-color: #1a1a1a;
+                --text-main: #e2e8f0;
+                --text-muted: #a0aec0;
+                --border-color: #2d3748;
+                --bar-bg: #2d3748;
+                --bar-fill: #a0aec0;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: var(--spacing);
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+            margin-top: 24px;
+        }
+
+        h1 {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .subtitle {
+            font-size: 24px;
+            font-weight: 300;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+
+        .date {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--spacing);
+            margin-bottom: var(--spacing);
+        }
+
+        @media (min-width: 768px) {
+            .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .full-width {
+                grid-column: 1 / -1;
+            }
+        }
+
+        .card {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: var(--spacing);
+        }
+
+        .card-title {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .stat-large {
+            font-size: 32px;
+            font-weight: 300;
+            margin-bottom: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+        }
+
+        /* Progress Bars */
+        .progress-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .progress-label {
+            width: 100px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .progress-track {
+            flex-grow: 1;
+            height: 8px;
+            background-color: var(--bar-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--bar-fill);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-value {
+            width: 40px;
+            text-align: right;
+            font-size: 14px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Graph */
+        .graph-container {
+            height: 200px;
+            position: relative;
+            margin-top: 24px;
+            margin-bottom: 24px;
+        }
+
+        .graph-svg {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .graph-line {
+            fill: none;
+            stroke: var(--bar-fill);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .graph-point {
+            fill: var(--bg-color);
+            stroke: var(--bar-fill);
+            stroke-width: 2;
+        }
+
+        .graph-axis {
+            stroke: var(--border-color);
+            stroke-width: 1;
+        }
+
+        .graph-label {
+            fill: var(--text-muted);
+            font-size: 10px;
+            text-anchor: middle;
+        }
+        
+        .graph-y-label {
+            fill: var(--text-muted);
+            font-size: 10px;
+            text-anchor: end;
+            dominant-baseline: middle;
+        }
+
+        /* Lists */
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .quote-box {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .quote-text {
+            font-size: 18px;
+            font-style: italic;
+            color: var(--text-main);
+            margin-bottom: 12px;
+            font-weight: 300;
+        }
+
+        .quote-author {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>✦ LIFE OS</h1>
+        <div class="subtitle">Becoming the person I want to be.</div>
+        <div class="date" id="current-date">Loading...</div>
+    </header>
+
+    <div class="grid" id="dashboard-content" style="display: none;">
+        
+        <!-- TODAY -->
+        <div class="card">
+            <div class="card-title">TODAY</div>
+            <div id="today-content">
+                <div class="stat-large" id="today-tasks">0 / 0 completed</div>
+                
+                <div class="progress-container" style="margin: 24px 0;">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="today-progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-value" id="today-progress-val">0%</div>
+                </div>
+
+                <div class="stat-row">
+                    <span class="stat-label">Workout</span>
+                    <span id="today-workout">—</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Energy</span>
+                    <span id="today-energy">—</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Sleep</span>
+                    <span id="today-sleep">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- THIS WEEK -->
+        <div class="card">
+            <div class="card-title">THIS WEEK</div>
+            <div id="week-content">
+                <div class="stat-large" id="week-completion">0% completion</div>
+                <div style="margin-bottom: 24px; color: var(--text-muted); font-size: 14px;">
+                    <span id="week-tasks-done">0</span> tasks completed<br>
+                    <span id="week-tasks-planned">0</span> tasks planned
+                </div>
+                
+                <div class="stat-row">
+                    <span class="stat-label">Active days</span>
+                    <span id="week-active-days">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Workouts</span>
+                    <span id="week-workouts">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN GRAPH -->
+        <div class="card full-width">
+            <div class="card-title">7-DAY EXECUTION</div>
+            <div class="graph-container" id="execution-graph">
+                <!-- SVG injected via JS -->
+                <div class="empty-state" id="graph-empty" style="display:none; text-align:center; padding-top: 80px;">Not enough data yet</div>
+            </div>
+        </div>
+
+        <!-- OUTCOMES -->
+        <div class="card">
+            <div class="card-title">OUTCOMES (LAST 7 DAYS)</div>
+            <div id="outcomes-list">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+
+        <!-- LIFE AREAS -->
+        <div class="card">
+            <div class="card-title">LIFE AREAS</div>
+            <div id="areas-list">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+
+        <!-- GOALS -->
+        <div class="card full-width">
+            <div class="card-title">GOALS</div>
+            <div id="goals-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+
+        <!-- WEEKLY WIN & ATTENTION -->
+        <div class="card">
+            <div class="card-title">THIS WEEK'S WIN</div>
+            <div style="font-size: 16px; margin-bottom: 12px;" id="weekly-win-text"></div>
+            <div style="color: var(--text-muted); font-size: 14px;" id="weekly-win-sub"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">NEEDS ATTENTION</div>
+            <div id="attention-list" style="font-size: 14px; color: var(--text-muted);">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+
+        <!-- QUOTE -->
+        <div class="full-width quote-box">
+            <div class="quote-text" id="quote-text"></div>
+            <div class="quote-author" id="quote-author"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const options = { weekday: 'long', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        function createProgressBar(label, pct, isMeasurable = true, extraText = '') {
+            if (!isMeasurable || pct === null || pct === undefined) {
+                return `
+                    <div class="progress-container">
+                        <div class="progress-label">${label}</div>
+                        <div class="empty-state" style="flex-grow:1; text-align:right;">Not enough data yet</div>
+                    </div>
+                `;
+            }
+            return `
+                <div class="progress-container">
+                    <div class="progress-label">${label}</div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="progress-value">${Math.round(pct)}%</div>
+                </div>
+                ${extraText ? \`<div style="font-size:12px; color:var(--text-muted); margin-top:-12px; margin-bottom:12px; margin-left: 112px;">\${extraText}</div>\` : ''}
+            `;
+        }
+
+        function drawGraph(data) {
+            const container = document.getElementById('execution-graph');
+            const emptyState = document.getElementById('graph-empty');
+            
+            // Need at least 2 points to draw a meaningful line graph
+            const validPoints = data.filter(d => d.completion_pct !== null);
+            if (validPoints.length < 2) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            // sort chronologically
+            const sorted = [...data].sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            const padding = { top: 20, right: 20, bottom: 30, left: 40 };
+            const innerW = w - padding.left - padding.right;
+            const innerH = h - padding.top - padding.bottom;
+
+            let svg = \`<svg class="graph-svg" viewBox="0 0 \${w} \${h}">\`;
+            
+            // Draw Y axis lines & labels
+            [0, 25, 50, 75, 100].forEach(val => {
+                const y = padding.top + innerH - (val / 100) * innerH;
+                svg += \`<line x1="\${padding.left}" y1="\${y}" x2="\${w - padding.right}" y2="\${y}" class="graph-axis" stroke-dasharray="2,4" />\`;
+                svg += \`<text x="\${padding.left - 10}" y="\${y}" class="graph-y-label">\${val}%</text>\`;
+            });
+
+            // Draw X axis & labels
+            svg += \`<line x1="\${padding.left}" y1="\${h - padding.bottom}" x2="\${w - padding.right}" y2="\${h - padding.bottom}" class="graph-axis" />\`;
+            
+            let points = [];
+            sorted.forEach((d, i) => {
+                const x = padding.left + (i / (sorted.length - 1)) * innerW;
+                
+                // Label
+                const dayName = DAYS[new Date(d.date).getDay()];
+                svg += \`<text x="\${x}" y="\${h - 10}" class="graph-label">\${dayName}</text>\`;
+                
+                if (d.completion_pct !== null) {
+                    const y = padding.top + innerH - (d.completion_pct / 100) * innerH;
+                    points.push(\`\${x},\${y}\`);
+                }
+            });
+
+            if (points.length > 0) {
+                svg += \`<polyline points="\${points.join(' ')}" class="graph-line" />\`;
+                points.forEach(p => {
+                    const [x,y] = p.split(',');
+                    svg += \`<circle cx="\${x}" cy="\${y}" r="4" class="graph-point" />\`;
+                });
+            }
+
+            svg += \`</svg>\`;
+            container.innerHTML = svg;
+        }
+
+        async function loadDashboard() {
+            try {
+                // Determine today's date for header
+                document.getElementById('current-date').innerText = formatDate(new Date());
+
+                const res = await fetch('data/metrics.json');
+                if (!res.ok) throw new Error('Could not fetch data');
+                const data = await res.json();
+                
+                if (data.updated_at) {
+                    document.getElementById('current-date').innerText = formatDate(data.updated_at);
+                }
+
+                // Today
+                const today = data.today || {};
+                if (today.tasks_planned !== null && today.tasks_planned !== undefined) {
+                    document.getElementById('today-tasks').innerText = \`\${today.tasks_done || 0} / \${today.tasks_planned} completed\`;
+                    document.getElementById('today-progress-fill').style.width = \`\${today.completion_pct || 0}%\`;
+                    document.getElementById('today-progress-val').innerText = \`\${Math.round(today.completion_pct || 0)}%\`;
+                } else {
+                    document.getElementById('today-tasks').innerText = "Not enough data yet";
+                }
+                document.getElementById('today-workout').innerHTML = today.workout ? '✓' : '—';
+                document.getElementById('today-energy').innerText = today.energy ? \`\${today.energy} / 5\` : '—';
+                document.getElementById('today-sleep').innerText = today.sleep_hours ? \`\${today.sleep_hours}h\` : '—';
+
+                // This Week
+                const week = data.week || {};
+                if (week.completion_pct !== null && week.completion_pct !== undefined) {
+                    document.getElementById('week-completion').innerText = \`\${Math.round(week.completion_pct)}% completion\`;
+                } else {
+                    document.getElementById('week-completion').innerText = "Not enough data yet";
+                }
+                document.getElementById('week-tasks-done').innerText = week.tasks_done || 0;
+                document.getElementById('week-tasks-planned').innerText = week.tasks_planned || 0;
+                document.getElementById('week-active-days').innerText = week.active_days || 0;
+                // If we have daily_rows, we can count workouts
+                const dailyRows = data.daily_execution || [];
+                document.getElementById('week-workouts').innerText = week.workout_consistency !== null && week.workout_consistency !== undefined ? \`\${Math.round(week.workout_consistency)}% consistency\` : '—';
+
+                // Graph
+                if (data.daily_execution) {
+                    // Small delay to ensure container has dimensions
+                    setTimeout(() => drawGraph(data.daily_execution), 50);
+                    window.addEventListener('resize', () => drawGraph(data.daily_execution));
+                }
+
+                // Outcomes
+                const out = data.outcomes || {};
+                let outHtml = '';
+                const totalOutcomes = Object.values(out).reduce((a,b) => a+b, 0);
+                if (totalOutcomes > 0) {
+                    const keys = ['completed', 'partial', 'forgot', 'never_started', 'skipped'];
+                    keys.forEach(k => {
+                        const val = out[k] || 0;
+                        if (val > 0 || k === 'completed') {
+                            const pct = totalOutcomes > 0 ? (val / totalOutcomes) * 100 : 0;
+                            const label = k.replace('_', ' ').replace(/\\b\\w/g, l => l.toUpperCase());
+                            outHtml += createProgressBar(label, pct, true, \`\${val} tasks\`);
+                        }
+                    });
+                } else {
+                    outHtml = '<div class="empty-state">Not enough data yet</div>';
+                }
+                document.getElementById('outcomes-list').innerHTML = outHtml;
+
+                // Life Areas
+                const areas = data.life_areas || [];
+                let areasHtml = '';
+                if (areas.length > 0) {
+                    areas.forEach(a => {
+                        areasHtml += createProgressBar(a.area, a.progress, a.measurable);
+                    });
+                } else {
+                    areasHtml = '<div class="empty-state">Not enough data yet</div>';
+                }
+                document.getElementById('areas-list').innerHTML = areasHtml;
+
+                // Goals
+                const goals = data.goals || [];
+                let goalsHtml = '';
+                if (goals.length > 0) {
+                    goals.forEach(g => {
+                        goalsHtml += \`
+                            <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px;">
+                                <div style="font-weight:600; margin-bottom:4px; font-size:14px;">\${g.goal}</div>
+                                <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">\${g.area}</div>
+                                \${createProgressBar('Progress', g.progress, g.measurable)}
+                                <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">\${g.status || 'No status'}</div>
+                            </div>
+                        \`;
+                    });
+                } else {
+                    goalsHtml = '<div class="empty-state">No active goals yet.</div>';
+                }
+                document.getElementById('goals-list').innerHTML = goalsHtml;
+
+                // Weekly Win
+                const win = data.weekly_win || {};
+                document.getElementById('weekly-win-text').innerText = win.text || 'Not enough data yet.';
+                if (win.comparison !== null && win.comparison !== undefined) {
+                    const moreLess = win.comparison >= 0 ? 'more' : 'fewer';
+                    document.getElementById('weekly-win-sub').innerText = \`That's \${Math.abs(win.comparison)} \${moreLess} than last week.\`;
+                }
+
+                // Needs Attention
+                const att = data.attention || { items: [] };
+                if (att.items && att.items.length > 0) {
+                    document.getElementById('attention-list').innerHTML = att.items.map(i => \`<div style="margin-bottom:8px;">\${i}</div>\`).join('');
+                } else {
+                    document.getElementById('attention-list').innerHTML = 'Not enough data yet.';
+                }
+
+                // Quote
+                const quote = data.quote || {};
+                document.getElementById('quote-text').innerText = quote.text || '“Small disciplines repeated with consistency lead to great achievements.”';
+                document.getElementById('quote-author').innerText = quote.author ? \`— \${quote.author}\` : '';
+
+                document.getElementById('dashboard-content').style.display = 'grid';
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('current-date').innerText = 'Error loading dashboard data.';
+            }
+        }
+
+        window.onload = loadDashboard;
+    </script>
+</body>
+</html>
