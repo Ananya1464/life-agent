@@ -1,14 +1,24 @@
 """~9:30 PM IST — weight-loss habit accountability check-in.
 Writes to the dedicated Evening Check-in database in Notion and emails."""
 import dates
-import emailer
+import event_model
 import llm
 import notion_api
 import prompt_loader
+import outbound
 
 
 def run():
     d = dates.today()
+    evening_intentions = [
+        {"task": "Logged all meals", "life_area": "Health"},
+        {"task": "Hit protein target (110–120 g)", "life_area": "Health"},
+        {"task": "Stayed around 1,600 kcal", "life_area": "Health"},
+        {"task": "8,000+ steps", "life_area": "Health"},
+        {"task": "Workout done (if a training day)", "life_area": "Health"},
+        {"task": "2.5 L+ water", "life_area": "Health"},
+        {"task": "7+ hours sleep planned", "life_area": "Personal"},
+    ]
     prompt = prompt_loader.load("evening_checkin", TODAY_LABEL=dates.day_label(d))
     nudge = llm.generate(prompt, temperature=0.9)  # higher temp → varied wording
     print(nudge)
@@ -37,4 +47,7 @@ def run():
     except Exception:
         pass  # best-effort, the dedicated DB is the primary
 
-    emailer.send(f"Evening check-in — {dates.day_label(d)} 🌙", nudge)
+    outbound.send_prompt_email(
+        "evening", f"Evening check-in — {dates.day_label(d)} 🌙", nudge
+    )
+    event_model.record_planned_intentions(dates.iso(d), "evening", evening_intentions)

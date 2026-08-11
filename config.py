@@ -42,6 +42,20 @@ EVENING_CHECKIN_DB_ID = os.getenv(
 DOPAMINE_MENU_DB_ID = os.getenv("DOPAMINE_MENU_DB_ID", "")
 # "Brain Dump" database
 BRAIN_DUMP_DB_ID = os.getenv("BRAIN_DUMP_DB_ID", "")
+# "Replies" database for mirrored parsed inbound replies
+REPLIES_DB_ID = os.getenv("REPLIES_DB_ID", "")
+# Life OS metrics database
+LIFE_OS_METRICS_DB_ID = os.getenv(
+    "LIFE_OS_METRICS_DB_ID", "35496a3a-c8ba-4fd6-81bd-66f66719f8f2"
+)
+# Life areas and goals database
+LIFE_AREAS_GOALS_DB_ID = os.getenv(
+    "LIFE_AREAS_GOALS_DB_ID", "8f4d05f9-dfa1-4cea-995c-d92ca00b540d"
+)
+# Main dashboard page
+LIFE_OS_DASHBOARD_PAGE_ID = os.getenv(
+    "LIFE_OS_DASHBOARD_PAGE_ID", "3b9de9d3-d9b7-81ba-b1b9-ef4a6d807cd8"
+)
 
 # --- Email (Gmail SMTP with an App Password) ---
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS", "ananyadubey1464@gmail.com")

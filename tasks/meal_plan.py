@@ -2,15 +2,20 @@
 the 'Weight Loss Plan — 83 → 53 kg' Notion page)."""
 import config
 import dates
-import emailer
 import llm
 import notion_api
 import prompt_loader
 import quality
+import outbound
 
 
 def run():
     d = dates.today()
+    try:
+        outbound.send_notification("morning")
+    except Exception as e:
+        print(f"[notify] morning skipped: {e}")
+
     # Deterministic lunch rotation: even day-of-year = rajma, odd = soya.
     lunch = "rajma" if d.timetuple().tm_yday % 2 == 0 else "soya chunk (soybean) curry"
     prompt = prompt_loader.load(
@@ -31,7 +36,9 @@ def run():
     )
     print(plan)
 
-    emailer.send(f"Today's meal plan — {dates.day_label(d)} 🥗", plan)
+    outbound.send_prompt_email(
+        "morning", f"Today's meal plan — {dates.day_label(d)} 🥗", plan
+    )
     try:
         notion_api.append_to_page(
             config.WEIGHT_LOSS_PAGE_ID,

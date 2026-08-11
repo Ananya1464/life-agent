@@ -4,11 +4,13 @@ Uses Notion API version 2025-09-03 (data sources). The integration token must
 be granted access to both the "🌱 Daily Life Tracker" page and the
 "Weight Loss Plan" page (Share → connections → your integration).
 """
+import json
 import re
 
 import requests
 
 import config
+import store
 
 BASE = "https://api.notion.com/v1"
 HEADERS = {
@@ -154,6 +156,46 @@ def replace_section(page_id: str, heading_contains: str, new_md: str):
 
 def append_to_page(page_id: str, md: str):
     _req("PATCH", f"/blocks/{page_id}/children", json={"children": md_to_blocks(md)})
+
+
+def sync_event(event: dict) -> str:
+    """Mirror one parsed reply into Notion and record the sync event."""
+    if not config.REPLIES_DB_ID:
+        raise ValueError("REPLIES_DB_ID not configured")
+
+    event_id = event.get("id")
+    if not event_id:
+        raise ValueError("sync_event requires event['id']")
+
+    for ev in store.load_all():
+        if ev.get("kind") == "notion_synced" and ev.get("event_id") == event_id:
+            return ev.get("notion_page_id", "")
+
+    date_iso = (event.get("ts") or "")[:10]
+    if not date_iso:
+        raise ValueError("sync_event requires event['ts']")
+
+    slot = event.get("slot")
+    if not slot:
+        token = event.get("token", "")
+        slot = {"M": "morning", "D": "midday", "E": "evening"}.get(token[-1:], "")
+
+    page = _req("POST", "/pages", json={
+        "parent": {"database_id": config.REPLIES_DB_ID},
+        "properties": {
+            "Date": {"date": {"start": date_iso}},
+            "Slot": {"select": {"name": slot}},
+            "Energy": {"number": event.get("energy")},
+            "Sleep": {"number": event.get("sleep_hours")},
+            "Soreness": {"select": {"name": event.get("soreness")}} if event.get("soreness") else {"select": None},
+            "Tasks": {"rich_text": [{"text": {"content": json.dumps(event.get("checkins", []), ensure_ascii=False)[:2000]}}]},
+            "Captures": {"rich_text": [{"text": {"content": json.dumps(event.get("captures", []), ensure_ascii=False)[:2000]}}]},
+            "Raw Reply": {"rich_text": [{"text": {"content": (event.get("raw_text") or "")[:2000]}}]},
+        },
+    })
+
+    store.append("notion_synced", {"event_id": event_id, "notion_page_id": page["id"]})
+    return page["id"]
 
 
 # ---------------------------------------------------------------- range queries

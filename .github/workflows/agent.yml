@@ -75,6 +75,7 @@ jobs:
           EVENING_CHECKIN_DB_ID: ${{ secrets.EVENING_CHECKIN_DB_ID || '32758b21da4e420c9952aa3e1b130d4c' }}
           DOPAMINE_MENU_DB_ID: ${{ secrets.DOPAMINE_MENU_DB_ID }}
           BRAIN_DUMP_DB_ID: ${{ secrets.BRAIN_DUMP_DB_ID }}
+          REPLIES_DB_ID: ${{ secrets.REPLIES_DB_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           LLM_PROVIDER: "gemini"
         run: python main.py ${{ steps.pick.outputs.task }}
@@ -86,6 +87,19 @@ jobs:
             git config --local user.name "GitHub Action"
             git add data/events.jsonl
             git commit -m "chore: update events.jsonl [skip ci]"
+            git push || (git pull --rebase && git push)
+          fi
+
+      - name: Generate dashboard data
+        run: python -c "import metrics; metrics.write_dashboard_data()"
+
+      - name: Commit dashboard data
+        run: |
+          if ! git diff --quiet docs/data/metrics.json docs/data/goals.json; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add docs/data/metrics.json docs/data/goals.json
+            git commit -m "chore: update dashboard data [skip ci]"
             git push || (git pull --rebase && git push)
           fi
 
