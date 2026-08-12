@@ -170,7 +170,8 @@ def send_notification(slot: str, *, task_name: str | None = None) -> str:
     except Exception as e:
         push_error = e
         try:
-            message_id = _send_email(f"[{token}] {subject}", f"{body}\n\n---\nReply in your own words if you want to capture this elsewhere.")
+            daily_log_url = f"https://notion.so/{config.DAILY_LOG_DATA_SOURCE_ID.replace('-', '')}"
+            message_id = _send_email(f"[{token}] {subject}", f"{body}\n\n---\nReply in your own words if you want to capture this elsewhere.\nOr open chat in Notion: {daily_log_url}")
             if message_id:
                 delivered_via = "email"
         except Exception as email_error:
@@ -203,11 +204,13 @@ def send_notification(slot: str, *, task_name: str | None = None) -> str:
 def send_prompt_email(slot: str, subject_text: str, body: str) -> str:
     token = _token_for_slot(slot)
     subject = f"[{token}] {subject_text}"
+    daily_log_url = f"https://notion.so/{config.DAILY_LOG_DATA_SOURCE_ID.replace('-', '')}"
     final_body = "\n".join(
         [
             body.rstrip(),
             "---",
             "Just reply to this email in your own words. No format needed.",
+            f"Or open chat in Notion: {daily_log_url}",
         ]
     )
 
