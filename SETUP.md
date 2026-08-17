@@ -45,7 +45,7 @@ Repo → Settings → Secrets and variables → Actions → "New repository secr
 | `ANTHROPIC_API_KEY` | Option A key | one of the two |
 | `GEMINI_API_KEY` | Option B key | one of the two |
 | `NOTION_TOKEN` | `ntn_...` from step 1 | ✅ |
-| `GMAIL_ADDRESS` | ananyadubey1464@gmail.com | for email |
+| `GMAIL_ADDRESS` | your-email@gmail.com | for email |
 | `GMAIL_APP_PASSWORD` | 16-char app password | for email |
 | `ICAL_URL` | secret iCal URL | for calendar |
 

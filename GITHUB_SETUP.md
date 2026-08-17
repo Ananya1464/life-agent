@@ -77,7 +77,7 @@ Your API keys need to be stored as GitHub Secrets (encrypted, never visible in l
 |---|---|---|
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) — click "Create API key" | ✅ Yes |
 | `NOTION_TOKEN` | [Notion integrations](https://www.notion.so/my-integrations) — your integration's "Internal Integration Secret" | ✅ Yes |
-| `GMAIL_ADDRESS` | Your Gmail address: `ananyadubey1464@gmail.com` | Optional |
+| `GMAIL_ADDRESS` | Your Gmail address: `your-email@gmail.com` | Optional |
 | `GMAIL_APP_PASSWORD` | [Google App Passwords](https://myaccount.google.com/apppasswords) — create one for "Mail" | Optional |
 | `ICAL_URL` | Google Calendar → Settings → your calendar → "Secret address in iCal format" | Optional |
 | `REMINDERS_DB_ID` | See Step 4 below | Optional |

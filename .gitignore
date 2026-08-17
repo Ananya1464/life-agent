@@ -1,5 +1,9 @@
 .env
+.env.example
 .venv/
 logs/
+data/
+docs/data/
 __pycache__/
 *.pyc
+filter_repo_scrub.py
