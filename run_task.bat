@@ -15,7 +15,7 @@ if "%~1"=="" (
 )
 
 echo [%date% %time%] ===== Running task: %1 ===== >> %LOGFILE%
-.venv\Scripts\python.exe main.py %1 >> %LOGFILE% 2>&1
+.venv\Scripts\python.exe -m life_agent.agent.main %1 >> %LOGFILE% 2>&1
 if errorlevel 1 (
     echo [%date% %time%] WARNING: %1 failed >> %LOGFILE%
     exit /b 1

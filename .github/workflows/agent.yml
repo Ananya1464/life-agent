@@ -78,7 +78,7 @@ jobs:
           REPLIES_DB_ID: ${{ secrets.REPLIES_DB_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           LLM_PROVIDER: "gemini"
-        run: python main.py ${{ steps.pick.outputs.task }}
+        run: python -m life_agent.agent.main ${{ steps.pick.outputs.task }}
 
       
 

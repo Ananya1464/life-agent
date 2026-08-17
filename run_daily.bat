@@ -46,19 +46,19 @@ if errorlevel 1 (
 
 REM Run all 4 tasks in order
 echo [%date% %time%] Task 1/4: meal_plan >> %LOGFILE%
-python main.py meal_plan >> %LOGFILE% 2>&1
+python -m life_agent.agent.main meal_plan >> %LOGFILE% 2>&1
 if errorlevel 1 echo [%date% %time%] WARNING: meal_plan failed >> %LOGFILE%
 
 echo [%date% %time%] Task 2/4: ai_edge >> %LOGFILE%
-python main.py ai_edge >> %LOGFILE% 2>&1
+python -m life_agent.agent.main ai_edge >> %LOGFILE% 2>&1
 if errorlevel 1 echo [%date% %time%] WARNING: ai_edge failed >> %LOGFILE%
 
 echo [%date% %time%] Task 3/4: evening_checkin >> %LOGFILE%
-python main.py evening_checkin >> %LOGFILE% 2>&1
+python -m life_agent.agent.main evening_checkin >> %LOGFILE% 2>&1
 if errorlevel 1 echo [%date% %time%] WARNING: evening_checkin failed >> %LOGFILE%
 
 echo [%date% %time%] Task 4/4: tomorrow_planner >> %LOGFILE%
-python main.py tomorrow_planner >> %LOGFILE% 2>&1
+python -m life_agent.agent.main tomorrow_planner >> %LOGFILE% 2>&1
 if errorlevel 1 echo [%date% %time%] WARNING: tomorrow_planner failed >> %LOGFILE%
 
 echo [%date% %time%] ========== Daily run complete ========== >> %LOGFILE%
