@@ -276,3 +276,58 @@ def write_brain_dump(content: str):
         },
         "children": md_to_blocks(content),
     })
+
+
+def append_to_database(database_id: str, properties: dict) -> str:
+    """Create a new row in any Notion database with the given properties.
+    Returns the new page id."""
+    page = _req("POST", "/pages", json={
+        "parent": {"database_id": database_id},
+        "properties": properties,
+    })
+    return page["id"]
+
+
+def query_database(database_id: str, filter_dict: dict = None) -> list[dict]:
+    """Query a Notion database, handling pagination automatically to return all results."""
+    results = []
+    cursor = None
+    payload = {}
+    if filter_dict:
+        payload["filter"] = filter_dict
+        
+    while True:
+        if cursor:
+            payload["start_cursor"] = cursor
+            
+        data = _req("POST", f"/databases/{database_id}/query", json=payload)
+        results.extend(data.get("results", []))
+        
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+        
+    return results
+
+
+def query_data_source(data_source_id: str, filter_dict: dict = None) -> list[dict]:
+    """Query a Notion data source, handling pagination automatically to return all results."""
+    results = []
+    cursor = None
+    payload = {}
+    if filter_dict:
+        payload["filter"] = filter_dict
+        
+    while True:
+        if cursor:
+            payload["start_cursor"] = cursor
+            
+        data = _req("POST", f"/data_sources/{data_source_id}/query", json=payload)
+        results.extend(data.get("results", []))
+        
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+        
+    return results
+
