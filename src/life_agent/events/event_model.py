@@ -225,3 +225,38 @@ def normalize_reply_events(
         checkins=checkins or [],
         planned_intentions=planned_intentions,
     )
+
+
+def record_focus_started(*, date_iso: str, task: str, intent_id: str | None = None, source: str = "focus_tab") -> None:
+    append_once(
+        "focus_started",
+        {"date": date_iso, "task": task, "intent_id": intent_id, "source": source},
+        f"focus_started:{date_iso}:{intent_id or slugify(task)}:{source}",
+    )
+
+
+def record_focus_completed(*, date_iso: str, task: str, duration_seconds: int,
+                           intent_id: str | None = None, source: str = "focus_tab") -> None:
+    append_once(
+        "focus_completed",
+        {"date": date_iso, "task": task, "duration_seconds": duration_seconds,
+         "intent_id": intent_id, "source": source},
+        f"focus_completed:{date_iso}:{intent_id or slugify(task)}",
+    )
+
+
+def record_focus_abandoned(*, date_iso: str, task: str, duration_seconds: int,
+                           intent_id: str | None = None, source: str = "focus_tab") -> None:
+    append_once(
+        "focus_abandoned",
+        {"date": date_iso, "task": task, "duration_seconds": duration_seconds,
+         "intent_id": intent_id, "source": source},
+        f"focus_abandoned:{date_iso}:{intent_id or slugify(task)}",
+    )
+
+
+def record_reflection(*, date_iso: str, text: str, source: str = "typewriter") -> None:
+    store.append(
+        "reflection_added",
+        {"date": date_iso, "text": text, "source": source},
+    )
