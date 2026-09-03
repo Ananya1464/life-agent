@@ -4,6 +4,7 @@ Checks, in order:
   1. .env loads and required keys are present
   2. Notion token works and can see the Daily Log data source + Weight Loss page
   3. Gemini key works with the configured model
+  4. NVIDIA fallback key works (optional)
 """
 import os
 import pathlib
@@ -31,8 +32,8 @@ def check_keys():
     if not os.environ.get("NOTION_TOKEN", "").startswith("ntn_"):
         print("[FAIL] NOTION_TOKEN missing or malformed")
         ok = False
-    if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")):
-        print("[FAIL] Need GEMINI_API_KEY or ANTHROPIC_API_KEY")
+    if not os.environ.get("GEMINI_API_KEY"):
+        print("[FAIL] Need GEMINI_API_KEY")
         ok = False
     if not ok:
         sys.exit(1)
@@ -75,9 +76,6 @@ def check_notion():
 
 
 def check_llm():
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        print("[INFO] ANTHROPIC_API_KEY set — Claude backend will be used.")
-        return
     from google import genai
 
     model = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
@@ -96,6 +94,25 @@ def check_llm():
         else:
             print(f"[FAIL] Gemini error: {msg[:300]}")
             sys.exit(1)
+
+    # Optional: check NVIDIA fallback
+    if os.environ.get("NVIDIA_API_KEY"):
+        from openai import OpenAI
+        nvidia_model = os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+        client = OpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=os.environ["NVIDIA_API_KEY"],
+        )
+        try:
+            resp = client.chat.completions.create(
+                model=nvidia_model,
+                messages=[{"role": "user", "content": "Reply with exactly: OK"}],
+                max_tokens=10,
+                temperature=0,
+            )
+            print(f"[ OK ] NVIDIA ({nvidia_model}) responded: {(resp.choices[0].message.content or '').strip()[:40]}")
+        except Exception as e:
+            print(f"[WARN] NVIDIA fallback check failed: {str(e)[:200]}")
 
 
 if __name__ == "__main__":

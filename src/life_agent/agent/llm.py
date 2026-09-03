@@ -1,18 +1,15 @@
 """The agent's brain — pluggable, two backends, hardened.
 
-1. "claude"  — real Claude via the Anthropic API. Defaults to claude-fable-5
-   (Anthropic's most capable model) with extended thinking + web search.
-   Activated automatically when ANTHROPIC_API_KEY is set.
-2. "gemini"  — free-tier fallback (Google AI Studio key). Gemini thinking
+1. "gemini"  — primary provider (Google AI Studio key). Gemini thinking
    mode + Google Search grounding.
+2. "nvidia"  — fallback provider (NVIDIA NIM). Nemotron 3 Ultra.
 
 Hardening:
   - Retries with exponential backoff on rate limits / transient errors
-  - Model fallback chain within Claude (fable-5 → opus-4-8 → sonnet-5)
-  - Cross-provider fallback: if Claude fails entirely and a Gemini key
-    exists, the task still completes on Gemini instead of crashing
+  - Cross-provider fallback: if Gemini fails and NVIDIA key exists,
+    the task still completes on NVIDIA instead of crashing
 
-Force a backend with LLM_PROVIDER=claude|gemini. One public function:
+Force a backend with LLM_PROVIDER=gemini|nvidia. One public function:
     generate(prompt, web_search=False, temperature=0.7, think=True) -> str
 """
 import os
@@ -35,19 +32,18 @@ SYSTEM_PROMPT = _system_prompt()
 
 PROVIDER = getattr(config, "LLM_PROVIDER", None) or os.getenv(
     "LLM_PROVIDER",
-    "claude" if os.getenv("ANTHROPIC_API_KEY") else "gemini",
+    "gemini",
 )
 PROVIDER = PROVIDER.lower()
 
+FALLBACK_PROVIDER = getattr(config, "LLM_FALLBACK_PROVIDER", None) or os.getenv(
+    "LLM_FALLBACK_PROVIDER",
+    "nvidia",
+)
+FALLBACK_PROVIDER = FALLBACK_PROVIDER.lower()
+
 THINKING_BUDGET = int(os.getenv("THINKING_BUDGET", "8000"))  # tokens of reasoning
 MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
-
-# Claude model fallback chain — first available wins.
-CLAUDE_MODELS = [
-    os.getenv("CLAUDE_MODEL", "claude-fable-5"),
-    "claude-opus-4-8",
-    "claude-sonnet-5",
-]
 
 
 def _retry(fn, *args, **kwargs):
@@ -67,46 +63,6 @@ def _retry(fn, *args, **kwargs):
             print(f"[llm] transient error, retrying in {delay}s: {msg[:120]}")
             time.sleep(delay)
             delay *= 2
-
-
-# --------------------------------------------------------------------- Claude
-def _call_claude(model, prompt, web_search, temperature, think):
-    import anthropic
-
-    client = anthropic.Anthropic(timeout=30.0)  # reads ANTHROPIC_API_KEY
-    kwargs = {
-        "model": model,
-        "max_tokens": 8192 + (THINKING_BUDGET if think else 0),
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    if SYSTEM_PROMPT:
-        kwargs["system"] = SYSTEM_PROMPT
-    if think:
-        # Extended thinking — the same deliberate reasoning Claude uses in-app.
-        kwargs["thinking"] = {"type": "enabled", "budget_tokens": THINKING_BUDGET}
-    else:
-        kwargs["temperature"] = temperature
-    if web_search:
-        kwargs["tools"] = [{"type": "web_search_20250305",
-                            "name": "web_search", "max_uses": 8}]
-    resp = client.messages.create(**kwargs)
-    return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-
-
-def _generate_claude(prompt, web_search, temperature, think):
-    last_err = None
-    for model in CLAUDE_MODELS:
-        try:
-            return _retry(_call_claude, model, prompt, web_search, temperature, think)
-        except Exception as e:
-            msg = str(e)
-            last_err = e
-            # Model not available on this account/tier → try the next one.
-            if "404" in msg or "not_found" in msg or "model" in msg.lower():
-                print(f"[llm] {model} unavailable, trying next model")
-                continue
-            raise
-    raise last_err
 
 
 # --------------------------------------------------------------------- Gemini
@@ -142,22 +98,54 @@ def _generate_gemini(prompt, web_search, temperature, think):
     return _retry(_call)
 
 
+# ---------------------------------------------------------------------- NVIDIA
+def _generate_nvidia(prompt, web_search, temperature, think):
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=config.NVIDIA_API_KEY,
+    )
+    model = config.NVIDIA_MODEL
+
+    # NVIDIA NIM doesn't support web_search or thinking natively
+    # Those are handled at the research layer (research.py)
+    def _call():
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+            temperature=temperature,
+        )
+        return resp.choices[0].message.content
+
+    return _retry(_call)
+
+
 # ----------------------------------------------------------------------- API
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
-             think: bool = True) -> str:
-    if PROVIDER == "claude":
+             think: bool = True, provider: str = None) -> str:
+    # Use explicit provider if provided, otherwise fall back to configured PROVIDER
+    active_provider = (provider or PROVIDER).lower()
+
+    # Primary provider logic
+    if active_provider == "gemini":
         try:
-            text = _generate_claude(prompt, web_search, temperature, think)
+            text = _generate_gemini(prompt, web_search, temperature, think)
         except Exception as e:
-            if config.GEMINI_API_KEY:
-                print(f"[llm] Claude failed ({str(e)[:120]}) — falling back to Gemini")
-                text = _generate_gemini(prompt, web_search, temperature, think)
+            if config.NVIDIA_API_KEY and FALLBACK_PROVIDER == "nvidia":
+                print(f"[llm] Gemini failed ({str(e)[:120]}) — falling back to NVIDIA")
+                text = _generate_nvidia(prompt, web_search, temperature, think)
             else:
                 raise
+    elif active_provider == "nvidia":
+        if not config.NVIDIA_API_KEY:
+            raise RuntimeError("NVIDIA_API_KEY not configured")
+        text = _generate_nvidia(prompt, web_search, temperature, think)
     else:
-        text = _generate_gemini(prompt, web_search, temperature, think)
+        raise RuntimeError(f"Unknown LLM_PROVIDER: {active_provider}")
 
     text = (text or "").strip()
     if not text:
-        raise RuntimeError(f"LLM ({PROVIDER}) returned empty response")
+        raise RuntimeError(f"LLM ({active_provider}) returned empty response")
     return text
