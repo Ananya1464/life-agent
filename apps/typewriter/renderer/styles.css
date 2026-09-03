@@ -1,0 +1,348 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  width: 420px;
+  height: 720px;
+  overflow: hidden;
+  background-color: transparent;
+  font-family: 'Press Start 2P', 'Consolas', 'Courier New', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  -webkit-app-region: drag;
+}
+
+.window-container {
+  width: 420px;
+  height: 720px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  padding-bottom: 24px;
+}
+
+/* Interactive Elements inside draggable window */
+.interactive-area {
+  -webkit-app-region: no-drag;
+}
+
+/* 1. Feed-out Cream Paper (#F5EDE0) */
+.paper-sheet {
+  width: 350px;
+  height: 330px;
+  background-color: #F5EDE0;
+  border: 3px solid #1A1A1A;
+  border-bottom: none;
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  position: relative;
+  z-index: 10;
+}
+
+.paper-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.paper-title {
+  font-size: 8.5px;
+  font-weight: bold;
+  color: #1A1A1A;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+.paper-divider {
+  font-size: 7px;
+  color: #555555;
+  letter-spacing: 2px;
+  margin: 4px 0 8px 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.paper-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1.5px dashed #8C7B6B;
+  border-radius: 4px;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.plan-textarea {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: #1A1A1A;
+  font-family: 'Press Start 2P', 'Consolas', monospace;
+  font-size: 9px;
+  line-height: 1.7;
+  user-select: text;
+}
+
+.plan-textarea::placeholder {
+  color: #7A6F65;
+  font-style: italic;
+  font-size: 8.5px;
+}
+
+.drop-subtext {
+  text-align: center;
+  font-size: 7px;
+  color: #61564C;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #A89B8C;
+  letter-spacing: 0.2px;
+}
+
+/* Checkpoint 2.2: Interactive Checklist Styling */
+.checklist-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.checklist-view::-webkit-scrollbar {
+  width: 4px;
+}
+
+.checklist-view::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
+}
+
+.checklist-view::-webkit-scrollbar-thumb {
+  background: #8C7B6B;
+  border-radius: 2px;
+}
+
+.phase-group {
+  margin-bottom: 12px;
+}
+
+.phase-header {
+  font-size: 8px;
+  font-weight: bold;
+  color: #1A1A1A;
+  margin-bottom: 6px;
+  border-bottom: 1px dotted #8C7B6B;
+  padding-bottom: 3px;
+  letter-spacing: 0.3px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 3px;
+  transition: background 0.08s ease;
+  user-select: text;
+}
+
+.checklist-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.task-checkbox {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid #1A1A1A;
+  background: #FFFDF9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1;
+  margin-top: 1px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.checklist-item.checked .task-checkbox {
+  background: #1A1A1A;
+  color: #F5EDE0;
+}
+
+.task-label {
+  font-size: 7.5px;
+  line-height: 1.5;
+  color: #1A1A1A;
+  word-break: break-word;
+  flex: 1;
+}
+
+.checklist-item.checked .task-label {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.done-timestamp {
+  font-size: 6.5px;
+  color: #61564C;
+  margin-left: 4px;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* 2. Typewriter Roller Mechanism */
+.typewriter-roller {
+  width: 370px;
+  height: 28px;
+  background: #1F1F1F;
+  border: 3px solid #111111;
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 15;
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.3);
+}
+
+.roller-slit {
+  width: 350px;
+  height: 5px;
+  background: #0A0A0A;
+  border-radius: 2px;
+}
+
+/* 3. Red Retro Typewriter Chassis (#C1443C) */
+.typewriter-chassis {
+  width: 384px;
+  background-color: #C1443C;
+  border: 3px solid #1A1A1A;
+  border-radius: 0 0 16px 16px;
+  padding: 12px 14px 16px 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 20;
+}
+
+/* Header Bar on Chassis */
+.chassis-header {
+  height: 32px;
+  background-color: #F5EDE0;
+  border: 2px solid #1A1A1A;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+}
+
+.header-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1.5px solid #1A1A1A;
+  background-color: #FFFDF9;
+  color: #1A1A1A;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 #1A1A1A;
+}
+
+.header-btn:hover {
+  background-color: #C1443C;
+  color: #FFFFFF;
+}
+
+.header-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.done-counter {
+  font-size: 9px;
+  font-weight: bold;
+  color: #1A1A1A;
+  letter-spacing: 0.5px;
+}
+
+.header-right {
+  display: flex;
+  gap: 6px;
+}
+
+/* 4. Retro Circular Keyboard */
+.keyboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.key-row {
+  display: flex;
+  gap: 5.5px;
+  align-items: center;
+  justify-content: center;
+}
+
+.key {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #FFFFFF, #F5EDE0);
+  border: 2px solid #1A1A1A;
+  color: #1A1A1A;
+  font-size: 8px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 0 #1A1A1A, inset 0 1px 1px rgba(255,255,255,0.8);
+  cursor: default;
+  transition: transform 0.05s ease;
+}
+
+.key:hover {
+  transform: translateY(-1px);
+  background: #FFF9EE;
+}
+
+.key.spacebar {
+  width: 170px;
+  height: 18px;
+  border-radius: 9px;
+  background: #F5EDE0;
+  border: 2px solid #1A1A1A;
+  box-shadow: 0 2px 0 #1A1A1A;
+  margin-top: 2px;
+}

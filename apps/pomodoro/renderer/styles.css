@@ -1,0 +1,330 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  width: 266px;
+  height: 322px;
+  overflow: hidden;
+  background-color: transparent;
+  font-family: 'Consolas', 'Courier New', monospace;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  -webkit-app-region: drag;
+}
+
+.window-container {
+  width: 266px;
+  height: 322px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Avocado SVG Container */
+.avocado-svg {
+  width: 266px;
+  height: 322px;
+  display: block;
+  pointer-events: none;
+}
+
+/* Draggable background, but pit area is interactive */
+.interactive-area {
+  -webkit-app-region: no-drag;
+}
+
+/* Log path indicator button at top-right */
+.log-path-btn {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: #0c123d;
+  color: #fff98a;
+  border: 1.5px solid #a9e23d;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  z-index: 100;
+  opacity: 0.8;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.log-path-btn:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.log-path-btn:active {
+  transform: scale(0.95);
+}
+
+/* Pit Container positioned precisely over the 104x104 circular pit */
+.pit-container {
+  position: absolute;
+  width: 104px;
+  height: 104px;
+  top: 154px;
+  left: 81px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20;
+  background-color: #57301f;
+  box-shadow: inset 0 0 0 3px #0c123d;
+}
+
+/* Tan Progress Wedge Canvas */
+.wedge-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 104px;
+  height: 104px;
+  pointer-events: none;
+  z-index: 21;
+}
+
+/* Pit Content Layer */
+.pit-content {
+  position: relative;
+  z-index: 25;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 6px;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #0c123d, -1px -1px 0 #0c123d, 1px -1px 0 #0c123d, -1px 1px 0 #0c123d;
+}
+
+/* Setup State */
+.setup-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
+.minutes-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  margin-top: -2px;
+}
+
+.minutes-input {
+  width: 44px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #c38a42;
+  color: #ffffff;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  outline: none;
+  text-shadow: 1px 1px 0 #0c123d, -1px -1px 0 #0c123d, 1px -1px 0 #0c123d, -1px 1px 0 #0c123d;
+}
+
+.minutes-input::-webkit-inner-spin-button, 
+.minutes-input::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+
+.minutes-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff98a;
+}
+
+.task-input {
+  width: 86px;
+  background: rgba(12, 18, 61, 0.45);
+  border: 1px solid #0c123d;
+  border-radius: 3px;
+  color: #ffffff;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: bold;
+  text-align: center;
+  padding: 2px 4px;
+  margin: 3px 0;
+  outline: none;
+}
+
+.task-input::placeholder {
+  color: #d9a97a;
+  font-style: italic;
+}
+
+.start-btn {
+  background: #72bd27;
+  color: #ffffff;
+  border: 2px solid #0c123d;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 #0c123d;
+  transition: transform 0.05s ease;
+}
+
+.start-btn:hover {
+  background: #a9e23d;
+}
+
+.start-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+/* Timer State */
+.timer-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+}
+
+.timer-task {
+  font-size: 9px;
+  font-weight: bold;
+  color: #fff98a;
+  max-width: 88px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.timer-digits {
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  margin: 1px 0;
+}
+
+.abandon-hint {
+  font-size: 8px;
+  color: #d9a97a;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.abandon-hint:hover {
+  opacity: 1;
+  color: #ff6584;
+}
+
+/* Alarm State */
+.alarm-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  animation: alarmPulse 0.44s infinite alternate;
+}
+
+@keyframes alarmPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.04); }
+}
+
+.alarm-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+  letter-spacing: 1px;
+}
+
+.alarm-sub {
+  font-size: 8px;
+  color: #fff98a;
+}
+
+/* Log Prompt State */
+.log-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+}
+
+.log-status {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.log-status.completed {
+  color: #a9e23d;
+}
+
+.log-status.abandoned {
+  color: #ff6584;
+}
+
+.log-time-info {
+  font-size: 8px;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.log-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.log-btn {
+  background: #72bd27;
+  color: #ffffff;
+  border: 2px solid #0c123d;
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 #0c123d;
+}
+
+.log-btn.skip {
+  background: #ff6584;
+}
+
+.log-btn:hover {
+  filter: brightness(1.1);
+}
+
+.log-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}

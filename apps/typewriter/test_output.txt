@@ -1,0 +1,52 @@
+
+createWindow started
+mainWindow created with id: 1
+isVisible: true
+bounds: {"x":430,"y":16,"width":420,"height":720}
+[RENDERER] [TYPEWRITER INIT] Loaded plan: 4/8 done
+[27676:0903/125858.598:INFO:CONSOLE(157)] "[TYPEWRITER INIT] Loaded plan: 4/8 done", source: file:///D:/life-agent/apps/typewriter/renderer/renderer.js (157)
+did-finish-load fired
+ready-to-show fired
+ready-to-show - isVisible: true
+ready-to-show - bounds: {"x":430,"y":16,"width":420,"height":720}
+called show(), isVisible now: true
+[RENDERER] %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+[27676:0903/125858.629:INFO:CONSOLE(2)] "%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: node:electron/js2c/sandbox_bundle (2)
+[TEST] Initial counter on screen: 4/8 done
+[TEST] Saved initial checklist screenshot to: C:\Users\Ananya\.gemini\antigravity-ide\brain\25415e2b-830e-4fbb-a3e8-ec3e05fdfdce\typewriter_checklist_initial.png
+
+[TEST] Programmatically clicking unchecked item (task-0: Install dependencies)...
+[RENDERER] [CHECKLIST TOGGLE] Task "task-0" ("Install dependencies") -> checked: true, live counter: 5/8 done
+[27676:0903/125859.514:INFO:CONSOLE(142)] "[CHECKLIST TOGGLE] Task "task-0" ("Install dependencies") -> checked: true, live counter: 5/8 done", source: file:///D:/life-agent/apps/typewriter/renderer/renderer.js (142)
+[TEST] Toggle 1 result: {
+  "counter": "5/8 done",
+  "isChecked": true,
+  "text": "Install dependencies (done 2026-09-03T12:58)"
+}
+[TEST] Saved toggled checklist screenshot to: C:\Users\Ananya\.gemini\antigravity-ide\brain\25415e2b-830e-4fbb-a3e8-ec3e05fdfdce\typewriter_checklist_toggled.png
+
+[TEST] Programmatically unchecking item (task-1: Initialize git repo)...
+[RENDERER] [CHECKLIST TOGGLE] Task "task-1" ("Initialize git repo") -> checked: false, live counter: 4/8 done
+[27676:0903/125859.884:INFO:CONSOLE(142)] "[CHECKLIST TOGGLE] Task "task-1" ("Initialize git repo") -> checked: false, live counter: 4/8 done", source: file:///D:/life-agent/apps/typewriter/renderer/renderer.js (142)
+[TEST] Toggle 2 result: {
+  "counter": "4/8 done",
+  "isChecked": false,
+  "text": "Initialize git repo"
+}
+
+[TEST] Automated test completed successfully. Exiting.
+mainWindow closed event fired

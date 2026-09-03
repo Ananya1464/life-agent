@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Typewriter</title>
+  <!-- Google Fonts: Press Start 2P & Consolas monospace fallback -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="window-container">
+    
+    <!-- Top Feed-out Cream Paper (#F5EDE0) -->
+    <div class="paper-sheet" id="paper-sheet">
+      <div class="paper-header">
+        <div class="paper-title">... DESKTOP TRACKER STUDY PL...</div>
+        <div class="paper-divider">........................................</div>
+      </div>
+      
+      <!-- Drop Zone & Plan Input (Static Shell) -->
+      <div class="paper-body">
+        <div class="drop-zone" id="drop-zone" style="display: none;">
+          <textarea 
+            class="plan-textarea interactive-area" 
+            id="plan-input" 
+            placeholder="type your plan..." 
+            spellcheck="false"
+          ></textarea>
+          <div class="drop-subtext">
+            drag & drop a .md file or paste (Ctrl+V)
+          </div>
+        </div>
+
+        <!-- Checkpoint 2.2: Interactive Checklist View -->
+        <div class="checklist-view interactive-area" id="checklist-view"></div>
+      </div>
+    </div>
+
+    <!-- Black Typewriter Roller Slot -->
+    <div class="typewriter-roller">
+      <div class="roller-slit"></div>
+    </div>
+
+    <!-- Red Typewriter Base (#C1443C) -->
+    <div class="typewriter-chassis">
+      
+      <!-- Header Bar on Chassis -->
+      <div class="chassis-header">
+        <button class="header-btn interactive-area" id="btn-add-left" title="New Plan">+</button>
+        <span class="done-counter" id="done-counter">0/0 done</span>
+        <div class="header-right">
+          <button class="header-btn interactive-area" id="btn-add-right" title="Add Item">+</button>
+          <button class="header-btn interactive-area" id="btn-help" title="Help / Info">?</button>
+        </div>
+      </div>
+
+      <!-- Typewriter Circular Keyboard -->
+      <div class="keyboard-container">
+        
+        <!-- Row 1: Numbers -->
+        <div class="key-row">
+          <div class="key">1</div>
+          <div class="key">2</div>
+          <div class="key">3</div>
+          <div class="key">4</div>
+          <div class="key">5</div>
+          <div class="key">6</div>
+          <div class="key">7</div>
+          <div class="key">8</div>
+          <div class="key">9</div>
+          <div class="key">0</div>
+        </div>
+
+        <!-- Row 2: QWERTY -->
+        <div class="key-row">
+          <div class="key">Q</div>
+          <div class="key">W</div>
+          <div class="key">E</div>
+          <div class="key">R</div>
+          <div class="key">T</div>
+          <div class="key">Y</div>
+          <div class="key">U</div>
+          <div class="key">I</div>
+          <div class="key">O</div>
+          <div class="key">P</div>
+        </div>
+
+        <!-- Row 3: ASDF -->
+        <div class="key-row">
+          <div class="key">A</div>
+          <div class="key">S</div>
+          <div class="key">D</div>
+          <div class="key">F</div>
+          <div class="key">G</div>
+          <div class="key">H</div>
+          <div class="key">J</div>
+          <div class="key">K</div>
+          <div class="key">L</div>
+        </div>
+
+        <!-- Row 4: ZXCV -->
+        <div class="key-row">
+          <div class="key">Z</div>
+          <div class="key">X</div>
+          <div class="key">C</div>
+          <div class="key">V</div>
+          <div class="key">B</div>
+          <div class="key">N</div>
+          <div class="key">M</div>
+          <div class="key">,</div>
+          <div class="key">.</div>
+          <div class="key">/</div>
+        </div>
+
+        <!-- Row 5: Spacebar -->
+        <div class="key-row">
+          <div class="key spacebar"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="parser.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
