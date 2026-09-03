@@ -18,13 +18,16 @@ def _load_dotenv():
 _load_dotenv()
 
 # --- LLM brain ---
-# Force "gemini" to avoid any Claude token spend. Set LLM_PROVIDER=claude
-# in .env to switch back (requires ANTHROPIC_API_KEY).
+# Primary provider: "gemini" (default) or "nvidia"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
-LLM_FALLBACK_PROVIDER = os.getenv("LLM_FALLBACK_PROVIDER", "")
 LLM_MAX_RETRIES = os.getenv("LLM_MAX_RETRIES", "3")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+
+# Fallback provider: "nvidia" (default) - used when primary fails
+LLM_FALLBACK_PROVIDER = os.getenv("LLM_FALLBACK_PROVIDER", "nvidia")
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
 
 # --- Notion ---
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]

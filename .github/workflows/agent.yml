@@ -68,7 +68,9 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.5-flash' }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_MODEL: ${{ secrets.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b' }}
+          LLM_FALLBACK_PROVIDER: ${{ secrets.LLM_FALLBACK_PROVIDER || 'nvidia' }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
@@ -80,8 +82,5 @@ jobs:
           REPLIES_DB_ID: ${{ secrets.REPLIES_DB_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           LLM_PROVIDER: "gemini"
-          LLM_FALLBACK_PROVIDER: ${{ secrets.LLM_FALLBACK_PROVIDER || '' }}
           LLM_MAX_RETRIES: ${{ secrets.LLM_MAX_RETRIES || '3' }}
         run: python -m life_agent.agent.main ${{ steps.pick.outputs.task }}
-
-      

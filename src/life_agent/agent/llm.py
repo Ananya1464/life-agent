@@ -1,18 +1,15 @@
 """The agent's brain — pluggable, two backends, hardened.
 
-1. "claude"  — real Claude via the Anthropic API. Defaults to claude-fable-5
-   (Anthropic's most capable model) with extended thinking + web search.
-   Activated automatically when ANTHROPIC_API_KEY is set.
-2. "gemini"  — free-tier fallback (Google AI Studio key). Gemini thinking
+1. "gemini"  — primary provider (Google AI Studio key). Gemini thinking
    mode + Google Search grounding.
+2. "nvidia"  — fallback provider (NVIDIA NIM). Nemotron 3 Ultra.
 
 Hardening:
-  - Retries with exponential backoff on rate limits / transient errors
-  - Model fallback chain within Claude (fable-5 → opus-4-8 → sonnet-5)
-  - Cross-provider fallback: if Claude fails entirely and a Gemini key
-    exists, the task still completes on Gemini instead of crashing
+  - Retries with exponential backoff on transient errors
+  - Quota-aware handling for Gemini daily free-tier exhaustion
+  - Cross-provider fallback: Gemini -> NVIDIA when configured
 
-Force a backend with LLM_PROVIDER=claude|gemini. One public function:
+Force a backend with LLM_PROVIDER=gemini|nvidia. One public function:
     generate(prompt, web_search=False, temperature=0.7, think=True) -> str
 """
 import os
@@ -23,7 +20,6 @@ from life_agent import config
 
 
 def _system_prompt() -> str:
-    """Claude-style system prompt (system_prompt.md), '' if missing."""
     p = pathlib.Path(__file__).parent / "system_prompt.md"
     try:
         return p.read_text(encoding="utf-8").strip()
@@ -33,21 +29,17 @@ def _system_prompt() -> str:
 
 SYSTEM_PROMPT = _system_prompt()
 
-PROVIDER = getattr(config, "LLM_PROVIDER", None) or os.getenv(
-    "LLM_PROVIDER",
-    "claude" if os.getenv("ANTHROPIC_API_KEY") else "gemini",
-)
+PROVIDER = getattr(config, "LLM_PROVIDER", None) or os.getenv("LLM_PROVIDER", "gemini")
 PROVIDER = PROVIDER.lower()
 
-THINKING_BUDGET = int(os.getenv("THINKING_BUDGET", "8000"))  # tokens of reasoning
-MAX_RETRIES = int(getattr(config, "LLM_MAX_RETRIES", None) or os.getenv("LLM_MAX_RETRIES", "3"))
+FALLBACK_PROVIDER = getattr(config, "LLM_FALLBACK_PROVIDER", None) or os.getenv(
+    "LLM_FALLBACK_PROVIDER",
+    "nvidia",
+)
+FALLBACK_PROVIDER = FALLBACK_PROVIDER.lower()
 
-# Claude model fallback chain — first available wins.
-CLAUDE_MODELS = [
-    os.getenv("CLAUDE_MODEL", "claude-fable-5"),
-    "claude-opus-4-8",
-    "claude-sonnet-5",
-]
+THINKING_BUDGET = int(os.getenv("THINKING_BUDGET", "8000"))
+MAX_RETRIES = int(getattr(config, "LLM_MAX_RETRIES", None) or os.getenv("LLM_MAX_RETRIES", "3"))
 
 
 class LLMQuotaExceededError(RuntimeError):
@@ -74,7 +66,6 @@ def _is_transient_error(msg: str) -> bool:
 
 
 def _retry(fn, *args, **kwargs):
-    """Run fn with exponential backoff on transient errors (429/5xx/timeouts)."""
     delay = 5
     for attempt in range(MAX_RETRIES):
         try:
@@ -91,54 +82,13 @@ def _retry(fn, *args, **kwargs):
             delay *= 2
 
 
-# --------------------------------------------------------------------- Claude
-def _call_claude(model, prompt, web_search, temperature, think):
-    import anthropic
-
-    client = anthropic.Anthropic(timeout=30.0)  # reads ANTHROPIC_API_KEY
-    kwargs = {
-        "model": model,
-        "max_tokens": 8192 + (THINKING_BUDGET if think else 0),
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    if SYSTEM_PROMPT:
-        kwargs["system"] = SYSTEM_PROMPT
-    if think:
-        # Extended thinking — the same deliberate reasoning Claude uses in-app.
-        kwargs["thinking"] = {"type": "enabled", "budget_tokens": THINKING_BUDGET}
-    else:
-        kwargs["temperature"] = temperature
-    if web_search:
-        kwargs["tools"] = [{"type": "web_search_20250305",
-                            "name": "web_search", "max_uses": 8}]
-    resp = client.messages.create(**kwargs)
-    return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-
-
-def _generate_claude(prompt, web_search, temperature, think):
-    last_err = None
-    for model in CLAUDE_MODELS:
-        try:
-            return _retry(_call_claude, model, prompt, web_search, temperature, think)
-        except Exception as e:
-            msg = str(e)
-            last_err = e
-            # Model not available on this account/tier → try the next one.
-            if "404" in msg or "not_found" in msg or "model" in msg.lower():
-                print(f"[llm] {model} unavailable, trying next model")
-                continue
-            raise
-    raise last_err
-
-
-# --------------------------------------------------------------------- Gemini
 def _generate_gemini(prompt, web_search, temperature, think):
     from google import genai
     from google.genai import types
 
     client = genai.Client(
         api_key=config.GEMINI_API_KEY,
-        http_options=types.HttpOptions(timeout=30_000)
+        http_options=types.HttpOptions(timeout=30_000),
     )
     cfg_kwargs = {"temperature": temperature}
     if SYSTEM_PROMPT:
@@ -146,12 +96,12 @@ def _generate_gemini(prompt, web_search, temperature, think):
     if web_search:
         cfg_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
     if think:
-        try:  # give a generous fixed reasoning budget
+        try:
             cfg_kwargs["thinking_config"] = types.ThinkingConfig(
                 thinking_budget=THINKING_BUDGET
             )
         except Exception:
-            pass  # non-thinking model / older SDK — degrade gracefully
+            pass
 
     def _call():
         resp = client.models.generate_content(
@@ -164,56 +114,77 @@ def _generate_gemini(prompt, web_search, temperature, think):
     return _retry(_call)
 
 
-# ----------------------------------------------------------------------- API
+def _generate_nvidia(prompt, web_search, temperature, think):
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=config.NVIDIA_API_KEY,
+    )
+
+    def _call():
+        resp = client.chat.completions.create(
+            model=config.NVIDIA_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+            temperature=temperature,
+        )
+        return resp.choices[0].message.content
+
+    return _retry(_call)
+
+
 def _configured_fallback_provider(primary: str) -> str | None:
     explicit = (
         getattr(config, "LLM_FALLBACK_PROVIDER", None)
         or os.getenv("LLM_FALLBACK_PROVIDER", "")
+        or FALLBACK_PROVIDER
     ).strip().lower()
-    if explicit:
-        return explicit if explicit != primary else None
-
-    if primary == "claude" and config.GEMINI_API_KEY:
-        return "gemini"
-    if primary == "gemini" and os.getenv("ANTHROPIC_API_KEY"):
-        return "claude"
-    return None
+    if not explicit or explicit == primary:
+        return None
+    return explicit
 
 
 def _generate_with_provider(provider: str, prompt: str, web_search: bool,
                             temperature: float, think: bool) -> str:
-    if provider == "claude":
-        return _generate_claude(prompt, web_search, temperature, think)
     if provider == "gemini":
         return _generate_gemini(prompt, web_search, temperature, think)
-    raise RuntimeError(f"Unsupported LLM provider '{provider}'")
+    if provider == "nvidia":
+        if not config.NVIDIA_API_KEY:
+            raise RuntimeError("NVIDIA_API_KEY not configured")
+        return _generate_nvidia(prompt, web_search, temperature, think)
+    raise RuntimeError(f"Unknown LLM_PROVIDER: {provider}")
 
 
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
-             think: bool = True) -> str:
-    provider_used = PROVIDER
+             think: bool = True, provider: str = None) -> str:
+    active_provider = (provider or PROVIDER).lower()
+    provider_used = active_provider
     try:
-        text = _generate_with_provider(PROVIDER, prompt, web_search, temperature, think)
+        text = _generate_with_provider(active_provider, prompt, web_search, temperature, think)
     except Exception as e:
         is_quota = isinstance(e, LLMQuotaExceededError)
-        allow_fallback = is_quota or PROVIDER == "claude"
-        if not allow_fallback:
-            raise
+        fallback = _configured_fallback_provider(active_provider)
+        can_fallback = (
+            active_provider == "gemini"
+            and fallback == "nvidia"
+            and bool(config.NVIDIA_API_KEY)
+        )
 
-        fallback = _configured_fallback_provider(PROVIDER)
-        if not fallback:
+        if can_fallback:
             if is_quota:
-                raise RuntimeError(
-                    f"LLM quota exhausted for provider '{PROVIDER}'. "
-                    "No fallback provider is configured."
-                ) from e
-            raise
-        if is_quota:
-            print(f"[llm] {PROVIDER} quota exhausted — falling back to {fallback}")
+                print("[llm] gemini quota exhausted — falling back to nvidia")
+            else:
+                print(f"[llm] gemini failed ({str(e)[:120]}) — falling back to nvidia")
+            text = _generate_with_provider("nvidia", prompt, web_search, temperature, think)
+            provider_used = "nvidia"
+        elif is_quota:
+            raise RuntimeError(
+                "LLM quota exhausted for provider 'gemini'. "
+                "No fallback provider is configured."
+            ) from e
         else:
-            print(f"[llm] {PROVIDER} failed ({str(e)[:120]}) — falling back to {fallback}")
-        text = _generate_with_provider(fallback, prompt, web_search, temperature, think)
-        provider_used = fallback
+            raise
 
     text = (text or "").strip()
     if not text:
