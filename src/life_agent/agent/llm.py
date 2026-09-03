@@ -40,7 +40,7 @@ PROVIDER = getattr(config, "LLM_PROVIDER", None) or os.getenv(
 PROVIDER = PROVIDER.lower()
 
 THINKING_BUDGET = int(os.getenv("THINKING_BUDGET", "8000"))  # tokens of reasoning
-MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
+MAX_RETRIES = int(getattr(config, "LLM_MAX_RETRIES", None) or os.getenv("LLM_MAX_RETRIES", "3"))
 
 # Claude model fallback chain — first available wins.
 CLAUDE_MODELS = [
@@ -48,6 +48,29 @@ CLAUDE_MODELS = [
     "claude-opus-4-8",
     "claude-sonnet-5",
 ]
+
+
+class LLMQuotaExceededError(RuntimeError):
+    """Raised when provider quota is exhausted and retries should stop."""
+
+
+def _is_quota_exhausted_error(msg: str) -> bool:
+    m = (msg or "").lower()
+    return any(t in m for t in (
+        "resource_exhausted",
+        "quota exceeded",
+        "free_tier_requests",
+        "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+        "generaterequestsperdayperprojectpermodel-freetier",
+    ))
+
+
+def _is_transient_error(msg: str) -> bool:
+    m = (msg or "").lower()
+    return any(t in m for t in (
+        "429", "529", "500", "502", "503", "504",
+        "overloaded", "rate limit", "too many requests", "timeout", "timed out",
+    ))
 
 
 def _retry(fn, *args, **kwargs):
@@ -58,10 +81,9 @@ def _retry(fn, *args, **kwargs):
             return fn(*args, **kwargs)
         except Exception as e:
             msg = str(e)
-            transient = any(t in msg for t in (
-                "429", "529", "500", "502", "503", "504",
-                "overloaded", "rate", "RESOURCE_EXHAUSTED", "timeout", "timed out",
-            ))
+            if _is_quota_exhausted_error(msg):
+                raise LLMQuotaExceededError(msg) from e
+            transient = _is_transient_error(msg)
             if not transient or attempt == MAX_RETRIES - 1:
                 raise
             print(f"[llm] transient error, retrying in {delay}s: {msg[:120]}")
@@ -143,21 +165,57 @@ def _generate_gemini(prompt, web_search, temperature, think):
 
 
 # ----------------------------------------------------------------------- API
+def _configured_fallback_provider(primary: str) -> str | None:
+    explicit = (
+        getattr(config, "LLM_FALLBACK_PROVIDER", None)
+        or os.getenv("LLM_FALLBACK_PROVIDER", "")
+    ).strip().lower()
+    if explicit:
+        return explicit if explicit != primary else None
+
+    if primary == "claude" and config.GEMINI_API_KEY:
+        return "gemini"
+    if primary == "gemini" and os.getenv("ANTHROPIC_API_KEY"):
+        return "claude"
+    return None
+
+
+def _generate_with_provider(provider: str, prompt: str, web_search: bool,
+                            temperature: float, think: bool) -> str:
+    if provider == "claude":
+        return _generate_claude(prompt, web_search, temperature, think)
+    if provider == "gemini":
+        return _generate_gemini(prompt, web_search, temperature, think)
+    raise RuntimeError(f"Unsupported LLM provider '{provider}'")
+
+
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
              think: bool = True) -> str:
-    if PROVIDER == "claude":
-        try:
-            text = _generate_claude(prompt, web_search, temperature, think)
-        except Exception as e:
-            if config.GEMINI_API_KEY:
-                print(f"[llm] Claude failed ({str(e)[:120]}) — falling back to Gemini")
-                text = _generate_gemini(prompt, web_search, temperature, think)
-            else:
-                raise
-    else:
-        text = _generate_gemini(prompt, web_search, temperature, think)
+    provider_used = PROVIDER
+    try:
+        text = _generate_with_provider(PROVIDER, prompt, web_search, temperature, think)
+    except Exception as e:
+        is_quota = isinstance(e, LLMQuotaExceededError)
+        allow_fallback = is_quota or PROVIDER == "claude"
+        if not allow_fallback:
+            raise
+
+        fallback = _configured_fallback_provider(PROVIDER)
+        if not fallback:
+            if is_quota:
+                raise RuntimeError(
+                    f"LLM quota exhausted for provider '{PROVIDER}'. "
+                    "No fallback provider is configured."
+                ) from e
+            raise
+        if is_quota:
+            print(f"[llm] {PROVIDER} quota exhausted — falling back to {fallback}")
+        else:
+            print(f"[llm] {PROVIDER} failed ({str(e)[:120]}) — falling back to {fallback}")
+        text = _generate_with_provider(fallback, prompt, web_search, temperature, think)
+        provider_used = fallback
 
     text = (text or "").strip()
     if not text:
-        raise RuntimeError(f"LLM ({PROVIDER}) returned empty response")
+        raise RuntimeError(f"LLM ({provider_used}) returned empty response")
     return text

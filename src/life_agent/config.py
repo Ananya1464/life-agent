@@ -21,6 +21,8 @@ _load_dotenv()
 # Force "gemini" to avoid any Claude token spend. Set LLM_PROVIDER=claude
 # in .env to switch back (requires ANTHROPIC_API_KEY).
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+LLM_FALLBACK_PROVIDER = os.getenv("LLM_FALLBACK_PROVIDER", "")
+LLM_MAX_RETRIES = os.getenv("LLM_MAX_RETRIES", "3")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
 
