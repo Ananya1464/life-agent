@@ -6,6 +6,7 @@ data/
 docs/data/
 __pycache__/
 *.pyc
+node_modules/
 filter_repo_scrub.py
 *.egg-info/
 src/*.egg-info/
