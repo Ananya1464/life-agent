@@ -67,7 +67,7 @@ jobs:
       - name: Run ${{ steps.pick.outputs.task }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.5-flash' }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-3.8-flash' }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_MODEL: ${{ secrets.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b' }}
           LLM_FALLBACK_PROVIDER: ${{ secrets.LLM_FALLBACK_PROVIDER || 'nvidia' }}
