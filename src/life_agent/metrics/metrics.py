@@ -348,15 +348,22 @@ def update_daily_metrics(day=None) -> dict:
     if not _configured_id(config.LIFE_OS_METRICS_DB_ID):
         print("[metrics] LIFE_OS_METRICS_DB_ID not configured — skipping daily metrics write.")
         return row
-    existing = _title_value(config.LIFE_OS_METRICS_DB_ID, row["date"])
-    props = _metric_props(row)
-    if existing:
-        notion_api._req("PATCH", f"/pages/{existing['id']}", json={"properties": props})
-    else:
-        notion_api._req("POST", "/pages", json={
-            "parent": {"database_id": config.LIFE_OS_METRICS_DB_ID},
-            "properties": props,
-        })
+    try:
+        existing = _title_value(config.LIFE_OS_METRICS_DB_ID, row["date"])
+        props = _metric_props(row)
+        if existing:
+            notion_api._req("PATCH", f"/pages/{existing['id']}", json={"properties": props})
+        else:
+            notion_api._req("POST", "/pages", json={
+                "parent": {"database_id": config.LIFE_OS_METRICS_DB_ID},
+                "properties": props,
+            })
+    except RuntimeError as e:
+        msg = str(e)
+        if "404" in msg or "object_not_found" in msg:
+            print(f"[metrics] LIFE_OS_METRICS_DB_ID not accessible (share the DB with the integration) — skipping: {msg[:200]}")
+        else:
+            raise
     return row
 
 
@@ -412,7 +419,14 @@ def update_dashboard(day=None) -> str:
     if not _configured_id(config.LIFE_OS_DASHBOARD_PAGE_ID):
         print("[metrics] LIFE_OS_DASHBOARD_PAGE_ID not configured — skipping dashboard update.")
         return md
-    notion_api.replace_section(config.LIFE_OS_DASHBOARD_PAGE_ID, "Current snapshot", md)
+    try:
+        notion_api.replace_section(config.LIFE_OS_DASHBOARD_PAGE_ID, "Current snapshot", md)
+    except RuntimeError as e:
+        msg = str(e)
+        if "404" in msg or "object_not_found" in msg:
+            print(f"[metrics] LIFE_OS_DASHBOARD_PAGE_ID not accessible (share the page with the integration) — skipping: {msg[:200]}")
+        else:
+            raise
     return md
 
 
