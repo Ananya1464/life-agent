@@ -78,7 +78,7 @@ def check_notion():
 def check_llm():
     from google import genai
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     try:
         resp = client.models.generate_content(model=model, contents="Reply with exactly: OK")
@@ -87,7 +87,7 @@ def check_llm():
         msg = str(e)
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
             print(f"[WARN] Gemini {model} rate-limited on free tier.")
-            print("       Add this line to .env:  GEMINI_MODEL=gemini-2.5-flash")
+            print("       Add this line to .env:  GEMINI_MODEL=gemini-3.5-flash-lite")
         elif "API key" in msg or "401" in msg or "403" in msg:
             print("[FAIL] Gemini API key rejected. Re-create it at aistudio.google.com/apikey")
             sys.exit(1)
