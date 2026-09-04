@@ -109,7 +109,7 @@ def _morning_notification_body() -> tuple[str, list[dict]]:
         "☀️ GOOD MORNING",
         "",
         "Today's energy:",
-        f"{dates.day_label(today)} — {len(schedule)} scheduled item(s)",
+        f"{dates.day_label(today)} — {len(intentions)} scheduled item(s)",
         "",
         "━━━━━━━━━━━━━━",
         "",

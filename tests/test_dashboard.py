@@ -45,5 +45,25 @@ class TestDashboard(unittest.TestCase):
             self.assertEqual(data["state"]["today_message"], "100% completion")
             self.assertTrue(data["state"]["history_available"])
 
+    def test_update_metrics_skips_placeholder_notion_ids(self):
+        with patch("life_agent.events.store.load_all", return_value=[]), patch(
+            "life_agent.integrations.calendar_feed.events_on", return_value=[]
+        ), patch("life_agent.integrations.notion_api._req") as mock_req, patch(
+            "life_agent.metrics.metrics.config.LIFE_OS_METRICS_DB_ID",
+            "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        ), patch(
+            "life_agent.metrics.metrics.config.LIFE_OS_DASHBOARD_PAGE_ID",
+            "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        ), patch(
+            "life_agent.metrics.metrics.config.LIFE_AREAS_GOALS_DB_ID",
+            "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        ):
+            data = metrics.update_metrics()
+
+            self.assertIn("daily", data)
+            self.assertIn("weekly", data)
+            self.assertIn("dashboard", data)
+            mock_req.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

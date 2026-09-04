@@ -24,6 +24,11 @@ NORMALIZED_OUTCOME_KINDS = {
 }
 
 
+def _configured_id(value: str | None) -> bool:
+    compact = (value or "").replace("-", "").strip()
+    return bool(compact) and set(compact) != {"x"}
+
+
 def _day_events(day) -> list[dict]:
     prefix = day.isoformat()
     return [ev for ev in store.load_all() if str(ev.get("ts", "")).startswith(prefix)]
@@ -56,7 +61,7 @@ def _quote_of_the_day() -> dict:
 
 
 def _area_rows() -> list[dict]:
-    if not config.LIFE_AREAS_GOALS_DB_ID:
+    if not _configured_id(config.LIFE_AREAS_GOALS_DB_ID):
         return []
     rows = goal_rows()
     area_scores = life_area_scores()
@@ -222,7 +227,7 @@ def calculate_daily_metrics(day=None) -> dict:
     ) or any(_slot_from_token(ev.get("token", "")) == "evening" and ev.get("kind") == "reply_raw" for ev in events) or any(
         "workout" in e.lower() for e in calendar_feed.events_on(day)
     )
-    goals_note = "No goal rows yet." if not config.LIFE_AREAS_GOALS_DB_ID else ""
+    goals_note = "No goal rows yet." if not _configured_id(config.LIFE_AREAS_GOALS_DB_ID) else ""
     notes = []
     if reply and reply.get("raw_text"):
         notes.append((reply.get("captures") or [{}])[0].get("text") if reply.get("captures") else "")
@@ -259,7 +264,7 @@ def calculate_daily_metrics(day=None) -> dict:
 
 
 def life_area_scores() -> dict[str, float]:
-    if not config.LIFE_AREAS_GOALS_DB_ID:
+    if not _configured_id(config.LIFE_AREAS_GOALS_DB_ID):
         return {}
     rows = notion_api._req("POST", f"/data_sources/{config.LIFE_AREAS_GOALS_DB_ID}/query", json={}).get("results", [])
     groups: dict[str, list[float]] = {}
@@ -272,7 +277,7 @@ def life_area_scores() -> dict[str, float]:
 
 
 def goal_rows() -> list[dict]:
-    if not config.LIFE_AREAS_GOALS_DB_ID:
+    if not _configured_id(config.LIFE_AREAS_GOALS_DB_ID):
         return []
     return notion_api._req("POST", f"/data_sources/{config.LIFE_AREAS_GOALS_DB_ID}/query", json={}).get("results", [])
 
@@ -340,6 +345,9 @@ def _metric_props(row: dict) -> dict:
 
 def update_daily_metrics(day=None) -> dict:
     row = calculate_daily_metrics(day)
+    if not _configured_id(config.LIFE_OS_METRICS_DB_ID):
+        print("[metrics] LIFE_OS_METRICS_DB_ID not configured — skipping daily metrics write.")
+        return row
     existing = _title_value(config.LIFE_OS_METRICS_DB_ID, row["date"])
     props = _metric_props(row)
     if existing:
@@ -401,6 +409,9 @@ def update_dashboard(day=None) -> str:
 - Replies processed: {daily.get('notifications_acknowledged') or 0}
 - Notes: {daily.get('notes') or 'No notes yet.'}
 """
+    if not _configured_id(config.LIFE_OS_DASHBOARD_PAGE_ID):
+        print("[metrics] LIFE_OS_DASHBOARD_PAGE_ID not configured — skipping dashboard update.")
+        return md
     notion_api.replace_section(config.LIFE_OS_DASHBOARD_PAGE_ID, "Current snapshot", md)
     return md
 

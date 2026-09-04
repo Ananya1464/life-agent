@@ -52,17 +52,27 @@ class LLMResilienceTests(unittest.TestCase):
         provider_mock = mock.Mock(side_effect=[llm.LLMQuotaExceededError("quota"), "fallback ok"])
         with mock.patch.object(llm, "PROVIDER", "gemini"), \
              mock.patch.object(llm, "_generate_with_provider", provider_mock), \
-             mock.patch.object(llm, "_configured_fallback_provider", return_value="claude"):
+             mock.patch.object(llm, "_configured_fallback_provider", return_value="nvidia"), \
+             mock.patch.object(llm.config, "NVIDIA_API_KEY", "test-nvidia-key"):
             self.assertEqual(llm.generate("prompt"), "fallback ok")
             self.assertEqual(provider_mock.call_args_list[0].args, ("gemini", "prompt", False, 0.7, True))
-            self.assertEqual(provider_mock.call_args_list[1].args, ("claude", "prompt", False, 0.7, True))
+            self.assertEqual(provider_mock.call_args_list[1].args, ("nvidia", "prompt", False, 0.7, True))
+            selected = [call.args[0] for call in provider_mock.call_args_list]
+            self.assertNotIn("claude", selected)
+            self.assertNotIn("anthropic", selected)
 
     def test_fallback_failure_propagates(self) -> None:
+        provider_mock = mock.Mock(side_effect=[llm.LLMQuotaExceededError("quota"), RuntimeError("fallback failed")])
         with mock.patch.object(llm, "PROVIDER", "gemini"), \
-             mock.patch.object(llm, "_generate_with_provider", side_effect=[llm.LLMQuotaExceededError("quota"), RuntimeError("fallback failed")]), \
-             mock.patch.object(llm, "_configured_fallback_provider", return_value="claude"):
+             mock.patch.object(llm, "_generate_with_provider", provider_mock), \
+             mock.patch.object(llm, "_configured_fallback_provider", return_value="nvidia"), \
+             mock.patch.object(llm.config, "NVIDIA_API_KEY", "test-nvidia-key"):
             with self.assertRaisesRegex(RuntimeError, "fallback failed"):
                 llm.generate("prompt")
+            selected = [call.args[0] for call in provider_mock.call_args_list]
+            self.assertEqual(selected, ["gemini", "nvidia"])
+            self.assertNotIn("claude", selected)
+            self.assertNotIn("anthropic", selected)
 
     def test_quota_exhaustion_without_fallback_fails_gracefully(self) -> None:
         with mock.patch.object(llm, "PROVIDER", "gemini"), \

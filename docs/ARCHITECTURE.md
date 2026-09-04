@@ -80,8 +80,8 @@ Direct REST integration using Notion API version `2025-09-03` with custom block 
 ### 2.4 LLM & Agent Core (`src/life_agent/agent/`)
 
 #### `llm.py`
-Interface to Google Gemini LLM API.
-- `generate(prompt: str, system_instruction: str = None, temperature: float = 0.7) -> str`: Generates text using Google Gemini models.
+Interface to Gemini and NVIDIA LLM APIs.
+- `generate(prompt: str, web_search: bool = False, temperature: float = 0.7, think: bool = True, provider: str | None = None) -> str`: Generates text using the configured provider, with optional per-call provider override.
 - `generate_json(prompt: str, schema: dict = None) -> dict`: Generates structured JSON responses with robust fallback parsing.
 
 #### `main.py`

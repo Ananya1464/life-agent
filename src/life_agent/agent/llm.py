@@ -9,8 +9,10 @@ Hardening:
   - Quota-aware handling for Gemini daily free-tier exhaustion
   - Cross-provider fallback: Gemini -> NVIDIA when configured
 
-Force a backend with LLM_PROVIDER=gemini|nvidia. One public function:
-    generate(prompt, web_search=False, temperature=0.7, think=True) -> str
+Force the default backend with LLM_PROVIDER=gemini|nvidia, or override a
+single call with provider="gemini"|"nvidia". One public function:
+    generate(prompt, web_search=False, temperature=0.7, think=True,
+             provider=None) -> str
 """
 import os
 import pathlib
@@ -66,6 +68,7 @@ def _is_transient_error(msg: str) -> bool:
 
 
 def _retry(fn, *args, **kwargs):
+    """Run fn with backoff on transient errors; do not retry exhausted quotas."""
     delay = 5
     for attempt in range(MAX_RETRIES):
         try:
@@ -156,9 +159,11 @@ def _generate_with_provider(provider: str, prompt: str, web_search: bool,
     raise RuntimeError(f"Unknown LLM_PROVIDER: {provider}")
 
 
+# ----------------------------------------------------------------------- API
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
-             think: bool = True, provider: str = None) -> str:
-    active_provider = (provider or PROVIDER).lower()
+             think: bool = True, provider: str | None = None) -> str:
+    explicit_provider = provider is not None
+    active_provider = (provider if explicit_provider else PROVIDER).strip().lower()
     provider_used = active_provider
     try:
         text = _generate_with_provider(active_provider, prompt, web_search, temperature, think)
@@ -166,7 +171,8 @@ def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
         is_quota = isinstance(e, LLMQuotaExceededError)
         fallback = _configured_fallback_provider(active_provider)
         can_fallback = (
-            active_provider == "gemini"
+            not explicit_provider
+            and active_provider == "gemini"
             and fallback == "nvidia"
             and bool(config.NVIDIA_API_KEY)
         )
