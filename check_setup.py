@@ -78,24 +78,25 @@ def check_notion():
 def check_llm():
     from google import genai
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    gemini_ok = False
     try:
         resp = client.models.generate_content(model=model, contents="Reply with exactly: OK")
         print(f"[ OK ] Gemini ({model}) responded: {(resp.text or '').strip()[:40]}")
+        gemini_ok = True
     except Exception as e:
         msg = str(e)
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
             print(f"[WARN] Gemini {model} rate-limited on free tier.")
-            print("       Add this line to .env:  GEMINI_MODEL=gemini-2.5-flash")
+            print("       Add this line to .env:  GEMINI_MODEL=gemini-3.5-flash-lite")
         elif "API key" in msg or "401" in msg or "403" in msg:
-            print("[FAIL] Gemini API key rejected. Re-create it at aistudio.google.com/apikey")
-            sys.exit(1)
+            print("[WARN] Gemini API key rejected. Re-create it at aistudio.google.com/apikey")
         else:
-            print(f"[FAIL] Gemini error: {msg[:300]}")
-            sys.exit(1)
+            print(f"[WARN] Gemini error: {msg[:300]}")
 
-    # Optional: check NVIDIA fallback
+    # Check NVIDIA fallback
+    nvidia_ok = False
     if os.environ.get("NVIDIA_API_KEY"):
         from openai import OpenAI
         nvidia_model = os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
@@ -111,8 +112,15 @@ def check_llm():
                 temperature=0,
             )
             print(f"[ OK ] NVIDIA ({nvidia_model}) responded: {(resp.choices[0].message.content or '').strip()[:40]}")
+            nvidia_ok = True
         except Exception as e:
             print(f"[WARN] NVIDIA fallback check failed: {str(e)[:200]}")
+
+    if not gemini_ok and not nvidia_ok:
+        print("[FAIL] Neither Gemini nor NVIDIA is operational. At least one working LLM is required.")
+        sys.exit(1)
+    elif not gemini_ok and nvidia_ok:
+        print("[INFO] Primary LLM (Gemini) unavailable, but fallback LLM (NVIDIA) is operational.")
 
 
 if __name__ == "__main__":
