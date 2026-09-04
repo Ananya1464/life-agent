@@ -45,6 +45,10 @@ def deep_research(goal: str, n_queries: int = 6) -> str:
         try:
             finding = search_one(q)
         except Exception as e:
+            msg = str(e).lower()
+            if ("quota exhausted" in msg or "resource_exhausted" in msg
+                    or "quota exceeded" in msg):
+                raise
             finding = f"(search failed: {e})"
         if "NOTHING FOUND" not in finding:
             notes.append(f"### Query: {q}\n{finding}")

@@ -20,6 +20,7 @@ _load_dotenv()
 # --- LLM brain ---
 # Primary provider: "gemini" (default) or "nvidia"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+LLM_MAX_RETRIES = os.getenv("LLM_MAX_RETRIES", "3")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
 
