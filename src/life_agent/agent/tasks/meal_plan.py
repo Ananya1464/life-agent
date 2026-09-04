@@ -9,6 +9,12 @@ from life_agent.agent import quality
 from life_agent.notifications import outbound
 
 
+def _configured_id(value: str | None) -> bool:
+    """Return True only if the ID is a real (non-placeholder) value."""
+    compact = (value or "").replace("-", "").strip()
+    return bool(compact) and set(compact) != {"x"}
+
+
 def run():
     d = dates.today()
     try:
@@ -23,7 +29,7 @@ def run():
     )
     plan = llm.generate(prompt)
 
-    # Verification pass: Claude double-checks the macro math — so do we.
+    # Verification pass: double-checks the macro math.
     plan = quality.critique_and_revise(
         plan,
         checklist=(
@@ -39,11 +45,15 @@ def run():
     outbound.send_prompt_email(
         "morning", f"Today's meal plan — {dates.day_label(d)} 🥗", plan
     )
-    try:
-        notion_api.append_to_page(
-            config.WEIGHT_LOSS_PAGE_ID,
-            f"## 🍽️ Meal plan — {dates.day_label(d)}\n{plan}\n---",
-        )
-        print("[notion] appended meal plan to Weight Loss page.")
-    except Exception as e:
-        print(f"[notion] append failed (plan was still emailed/printed): {e}")
+
+    if not _configured_id(config.WEIGHT_LOSS_PAGE_ID):
+        print("[notion] WEIGHT_LOSS_PAGE_ID not configured — skipping Notion append.")
+    else:
+        try:
+            notion_api.append_to_page(
+                config.WEIGHT_LOSS_PAGE_ID,
+                f"## 🍽️ Meal plan — {dates.day_label(d)}\n{plan}\n---",
+            )
+            print("[notion] appended meal plan to Weight Loss page.")
+        except Exception as e:
+            print(f"[notion] append failed (plan was still emailed/printed): {e}")
