@@ -9,8 +9,10 @@ Hardening:
   - Cross-provider fallback: if Gemini fails and NVIDIA key exists,
     the task still completes on NVIDIA instead of crashing
 
-Force a backend with LLM_PROVIDER=gemini|nvidia. One public function:
-    generate(prompt, web_search=False, temperature=0.7, think=True) -> str
+Force the default backend with LLM_PROVIDER=gemini|nvidia, or override a
+single call with provider="gemini"|"nvidia". One public function:
+    generate(prompt, web_search=False, temperature=0.7, think=True,
+             provider=None) -> str
 """
 import os
 import pathlib
@@ -46,17 +48,27 @@ THINKING_BUDGET = int(os.getenv("THINKING_BUDGET", "8000"))  # tokens of reasoni
 MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
 
+def _is_quota_exhaustion(msg: str) -> bool:
+    normalized = msg.lower()
+    return "resource_exhausted" in normalized or (
+        "quota" in normalized
+        and any(term in normalized for term in ("429", "exceeded", "exhausted"))
+    )
+
+
 def _retry(fn, *args, **kwargs):
-    """Run fn with exponential backoff on transient errors (429/5xx/timeouts)."""
+    """Run fn with backoff on transient errors; do not retry exhausted quotas."""
     delay = 5
     for attempt in range(MAX_RETRIES):
         try:
             return fn(*args, **kwargs)
         except Exception as e:
             msg = str(e)
+            if _is_quota_exhaustion(msg):
+                raise
             transient = any(t in msg for t in (
                 "429", "529", "500", "502", "503", "504",
-                "overloaded", "rate", "RESOURCE_EXHAUSTED", "timeout", "timed out",
+                "overloaded", "rate", "timeout", "timed out",
             ))
             if not transient or attempt == MAX_RETRIES - 1:
                 raise
@@ -124,16 +136,17 @@ def _generate_nvidia(prompt, web_search, temperature, think):
 
 # ----------------------------------------------------------------------- API
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
-             think: bool = True, provider: str = None) -> str:
-    # Use explicit provider if provided, otherwise fall back to configured PROVIDER
-    active_provider = (provider or PROVIDER).lower()
+             think: bool = True, provider: str | None = None) -> str:
+    explicit_provider = provider is not None
+    active_provider = (provider if explicit_provider else PROVIDER).strip().lower()
 
     # Primary provider logic
     if active_provider == "gemini":
         try:
             text = _generate_gemini(prompt, web_search, temperature, think)
         except Exception as e:
-            if config.NVIDIA_API_KEY and FALLBACK_PROVIDER == "nvidia":
+            if (not explicit_provider and config.NVIDIA_API_KEY
+                    and FALLBACK_PROVIDER == "nvidia"):
                 print(f"[llm] Gemini failed ({str(e)[:120]}) — falling back to NVIDIA")
                 text = _generate_nvidia(prompt, web_search, temperature, think)
             else:

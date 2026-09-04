@@ -33,6 +33,21 @@ class TestLLMProvider(unittest.TestCase):
                                 self.assertEqual(result, "Fallback response")
                                 mock_nvidia.assert_called_once()
 
+    def test_quota_exhaustion_is_not_retried(self):
+        """Test Gemini quota exhaustion raises immediately for provider fallback."""
+        call = MagicMock(
+            side_effect=Exception(
+                "429 RESOURCE_EXHAUSTED: free-tier daily request quota exhausted"
+            )
+        )
+        with patch("life_agent.agent.llm.MAX_RETRIES", 3):
+            with patch("life_agent.agent.llm.time.sleep") as mock_sleep:
+                with self.assertRaises(Exception) as cm:
+                    llm._retry(call)
+                self.assertIn("RESOURCE_EXHAUSTED", str(cm.exception))
+                call.assert_called_once()
+                mock_sleep.assert_not_called()
+
     def test_nvidia_success(self):
         """Test successful NVIDIA generation as primary provider."""
         with patch("life_agent.agent.llm._generate_nvidia", return_value="NVIDIA response") as mock:
@@ -59,14 +74,39 @@ class TestLLMProvider(unittest.TestCase):
         self.assertNotIn("claude", source.lower())
         self.assertNotIn("anthropic", source.lower())
 
-    def test_direct_nvidia_provider(self):
-        """Test explicit provider='nvidia' works."""
-        with patch("life_agent.agent.llm._generate_nvidia", return_value="Direct NVIDIA") as mock:
-            with patch("life_agent.agent.llm.PROVIDER", "nvidia"):
-                with patch("life_agent.agent.llm.config.NVIDIA_API_KEY", "test-key"):
-                    result = llm.generate("Test prompt", provider="nvidia")
-                    self.assertEqual(result, "Direct NVIDIA")
-                    mock.assert_called_once()
+    def test_direct_nvidia_provider_bypasses_configured_gemini(self):
+        """Test explicit provider='nvidia' routes directly to NVIDIA."""
+        with patch("life_agent.agent.llm._generate_gemini") as mock_gemini:
+            with patch("life_agent.agent.llm._generate_nvidia", return_value="Direct NVIDIA") as mock_nvidia:
+                with patch("life_agent.agent.llm.PROVIDER", "gemini"):
+                    with patch("life_agent.agent.llm.config.NVIDIA_API_KEY", "test-key"):
+                        result = llm.generate("Test prompt", provider="nvidia")
+                        self.assertEqual(result, "Direct NVIDIA")
+                        mock_nvidia.assert_called_once()
+                        mock_gemini.assert_not_called()
+
+    def test_direct_gemini_provider_bypasses_configured_nvidia(self):
+        """Test explicit provider='gemini' routes directly to Gemini."""
+        with patch("life_agent.agent.llm._generate_gemini", return_value="Direct Gemini") as mock_gemini:
+            with patch("life_agent.agent.llm._generate_nvidia") as mock_nvidia:
+                with patch("life_agent.agent.llm.PROVIDER", "nvidia"):
+                    with patch("life_agent.agent.llm.config.NVIDIA_API_KEY", "test-key"):
+                        result = llm.generate("Test prompt", provider="gemini")
+                        self.assertEqual(result, "Direct Gemini")
+                        mock_gemini.assert_called_once()
+                        mock_nvidia.assert_not_called()
+
+    def test_direct_gemini_provider_does_not_fallback_to_nvidia(self):
+        """Test explicit provider='gemini' does not silently switch providers."""
+        with patch("life_agent.agent.llm._generate_gemini", side_effect=Exception("Gemini error")):
+            with patch("life_agent.agent.llm._generate_nvidia") as mock_nvidia:
+                with patch("life_agent.agent.llm.PROVIDER", "nvidia"):
+                    with patch("life_agent.agent.llm.FALLBACK_PROVIDER", "nvidia"):
+                        with patch("life_agent.agent.llm.config.NVIDIA_API_KEY", "test-key"):
+                            with self.assertRaises(Exception) as cm:
+                                llm.generate("Test prompt", provider="gemini")
+                            self.assertIn("Gemini error", str(cm.exception))
+                            mock_nvidia.assert_not_called()
 
     def test_gemini_no_fallback_when_nvidia_key_missing(self):
         """Test Gemini failure raises error when NVIDIA key not configured."""
