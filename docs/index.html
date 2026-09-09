@@ -382,7 +382,7 @@
                     </div>
                     <div class="progress-value">${Math.round(pct)}%</div>
                 </div>
-                ${extraText ? \`<div style="font-size:12px; color:var(--text-muted); margin-top:-12px; margin-bottom:12px; margin-left: 112px;">\${extraText}</div>\` : ''}
+                ${extraText ? `<div style="font-size:12px; color:var(--text-muted); margin-top:-12px; margin-bottom:12px; margin-left: 112px;">${extraText}</div>` : ''}
             `;
         }
 
@@ -406,17 +406,17 @@
             const innerW = w - padding.left - padding.right;
             const innerH = h - padding.top - padding.bottom;
 
-            let svg = \`<svg class="graph-svg" viewBox="0 0 \${w} \${h}">\`;
+            let svg = `<svg class="graph-svg" viewBox="0 0 ${w} ${h}">`;
             
             // Draw Y axis lines & labels
             [0, 25, 50, 75, 100].forEach(val => {
                 const y = padding.top + innerH - (val / 100) * innerH;
-                svg += \`<line x1="\${padding.left}" y1="\${y}" x2="\${w - padding.right}" y2="\${y}" class="graph-axis" stroke-dasharray="2,4" />\`;
-                svg += \`<text x="\${padding.left - 10}" y="\${y}" class="graph-y-label">\${val}%</text>\`;
+                svg += `<line x1="${padding.left}" y1="${y}" x2="${w - padding.right}" y2="${y}" class="graph-axis" stroke-dasharray="2,4" />`;
+                svg += `<text x="${padding.left - 10}" y="${y}" class="graph-y-label">${val}%</text>`;
             });
 
             // Draw X axis & labels
-            svg += \`<line x1="\${padding.left}" y1="\${h - padding.bottom}" x2="\${w - padding.right}" y2="\${h - padding.bottom}" class="graph-axis" />\`;
+            svg += `<line x1="${padding.left}" y1="${h - padding.bottom}" x2="${w - padding.right}" y2="${h - padding.bottom}" class="graph-axis" />`;
             
             let points = [];
             sorted.forEach((d, i) => {
@@ -424,23 +424,23 @@
                 
                 // Label
                 const dayName = DAYS[new Date(d.date).getDay()];
-                svg += \`<text x="\${x}" y="\${h - 10}" class="graph-label">\${dayName}</text>\`;
+                svg += `<text x="${x}" y="${h - 10}" class="graph-label">${dayName}</text>`;
                 
                 if (d.completion_pct !== null) {
                     const y = padding.top + innerH - (d.completion_pct / 100) * innerH;
-                    points.push(\`\${x},\${y}\`);
+                    points.push(`${x},${y}`);
                 }
             });
 
             if (points.length > 0) {
-                svg += \`<polyline points="\${points.join(' ')}" class="graph-line" />\`;
+                svg += `<polyline points="${points.join(' ')}" class="graph-line" />`;
                 points.forEach(p => {
                     const [x,y] = p.split(',');
-                    svg += \`<circle cx="\${x}" cy="\${y}" r="4" class="graph-point" />\`;
+                    svg += `<circle cx="${x}" cy="${y}" r="4" class="graph-point" />`;
                 });
             }
 
-            svg += \`</svg>\`;
+            svg += `</svg>`;
             container.innerHTML = svg;
         }
 
@@ -460,20 +460,20 @@
                 // Today
                 const today = data.today || {};
                 if (today.tasks_planned !== null && today.tasks_planned !== undefined) {
-                    document.getElementById('today-tasks').innerText = \`\${today.tasks_done || 0} / \${today.tasks_planned} completed\`;
-                    document.getElementById('today-progress-fill').style.width = \`\${today.completion_pct || 0}%\`;
-                    document.getElementById('today-progress-val').innerText = \`\${Math.round(today.completion_pct || 0)}%\`;
+                    document.getElementById('today-tasks').innerText = `${today.tasks_done || 0} / ${today.tasks_planned} completed`;
+                    document.getElementById('today-progress-fill').style.width = `${today.completion_pct || 0}%`;
+                    document.getElementById('today-progress-val').innerText = `${Math.round(today.completion_pct || 0)}%`;
                 } else {
                     document.getElementById('today-tasks').innerText = "Not enough data yet";
                 }
                 document.getElementById('today-workout').innerHTML = today.workout ? '✓' : '—';
-                document.getElementById('today-energy').innerText = today.energy ? \`\${today.energy} / 5\` : '—';
-                document.getElementById('today-sleep').innerText = today.sleep_hours ? \`\${today.sleep_hours}h\` : '—';
+                document.getElementById('today-energy').innerText = today.energy ? `${today.energy} / 5` : '—';
+                document.getElementById('today-sleep').innerText = today.sleep_hours ? `${today.sleep_hours}h` : '—';
 
                 // This Week
                 const week = data.week || {};
                 if (week.completion_pct !== null && week.completion_pct !== undefined) {
-                    document.getElementById('week-completion').innerText = \`\${Math.round(week.completion_pct)}% completion\`;
+                    document.getElementById('week-completion').innerText = `${Math.round(week.completion_pct)}% completion`;
                 } else {
                     document.getElementById('week-completion').innerText = "Not enough data yet";
                 }
@@ -482,7 +482,7 @@
                 document.getElementById('week-active-days').innerText = week.active_days || 0;
                 // If we have daily_rows, we can count workouts
                 const dailyRows = data.daily_execution || [];
-                document.getElementById('week-workouts').innerText = week.workout_consistency !== null && week.workout_consistency !== undefined ? \`\${Math.round(week.workout_consistency)}% consistency\` : '—';
+                document.getElementById('week-workouts').innerText = week.workout_consistency !== null && week.workout_consistency !== undefined ? `${Math.round(week.workout_consistency)}% consistency` : '—';
 
                 // Graph
                 if (data.daily_execution) {
@@ -501,8 +501,8 @@
                         const val = out[k] || 0;
                         if (val > 0 || k === 'completed') {
                             const pct = totalOutcomes > 0 ? (val / totalOutcomes) * 100 : 0;
-                            const label = k.replace('_', ' ').replace(/\\b\\w/g, l => l.toUpperCase());
-                            outHtml += createProgressBar(label, pct, true, \`\${val} tasks\`);
+                            const label = k.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            outHtml += createProgressBar(label, pct, true, `${val} tasks`);
                         }
                     });
                 } else {
@@ -527,14 +527,14 @@
                 let goalsHtml = '';
                 if (goals.length > 0) {
                     goals.forEach(g => {
-                        goalsHtml += \`
+                        goalsHtml += `
                             <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px;">
-                                <div style="font-weight:600; margin-bottom:4px; font-size:14px;">\${g.goal}</div>
-                                <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">\${g.area}</div>
-                                \${createProgressBar('Progress', g.progress, g.measurable)}
-                                <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">\${g.status || 'No status'}</div>
+                                <div style="font-weight:600; margin-bottom:4px; font-size:14px;">${g.goal}</div>
+                                <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">${g.area}</div>
+                                ${createProgressBar('Progress', g.progress, g.measurable)}
+                                <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">${g.status || 'No status'}</div>
                             </div>
-                        \`;
+                        `;
                     });
                 } else {
                     goalsHtml = '<div class="empty-state">No active goals yet.</div>';
@@ -546,13 +546,13 @@
                 document.getElementById('weekly-win-text').innerText = win.text || 'Not enough data yet.';
                 if (win.comparison !== null && win.comparison !== undefined) {
                     const moreLess = win.comparison >= 0 ? 'more' : 'fewer';
-                    document.getElementById('weekly-win-sub').innerText = \`That's \${Math.abs(win.comparison)} \${moreLess} than last week.\`;
+                    document.getElementById('weekly-win-sub').innerText = `That's ${Math.abs(win.comparison)} ${moreLess} than last week.`;
                 }
 
                 // Needs Attention
                 const att = data.attention || { items: [] };
                 if (att.items && att.items.length > 0) {
-                    document.getElementById('attention-list').innerHTML = att.items.map(i => \`<div style="margin-bottom:8px;">\${i}</div>\`).join('');
+                    document.getElementById('attention-list').innerHTML = att.items.map(i => `<div style="margin-bottom:8px;">${i}</div>`).join('');
                 } else {
                     document.getElementById('attention-list').innerHTML = 'Not enough data yet.';
                 }
@@ -560,7 +560,7 @@
                 // Quote
                 const quote = data.quote || {};
                 document.getElementById('quote-text').innerText = quote.text || '“Small disciplines repeated with consistency lead to great achievements.”';
-                document.getElementById('quote-author').innerText = quote.author ? \`— \${quote.author}\` : '';
+                document.getElementById('quote-author').innerText = quote.author ? `— ${quote.author}` : '';
 
                 document.getElementById('dashboard-content').style.display = 'grid';
 
