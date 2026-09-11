@@ -21,15 +21,40 @@ import time
 from life_agent import config
 
 
-def _system_prompt() -> str:
-    p = pathlib.Path(__file__).parent / "system_prompt.md"
-    try:
-        return p.read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
+class GenerateResult(str):
+    """String subclass that carries provider and search-grounding metadata."""
+    provider: str
+    search_grounded: bool
+
+    def __new__(cls, text: str, provider: str = "", search_grounded: bool = False):
+        obj = super().__new__(cls, text)
+        obj.provider = provider
+        obj.search_grounded = search_grounded
+        return obj
 
 
-SYSTEM_PROMPT = _system_prompt()
+def _load_system_prompt() -> tuple[str, str]:
+    candidates = [
+        pathlib.Path(__file__).resolve().parents[3] / "system_prompt.md",
+        pathlib.Path(__file__).resolve().parent / "system_prompt.md",
+        pathlib.Path.cwd() / "system_prompt.md",
+    ]
+    for p in candidates:
+        if p.is_file():
+            try:
+                content = p.read_text(encoding="utf-8").strip()
+                if content:
+                    return content, str(p)
+            except OSError:
+                pass
+    return "", ""
+
+
+SYSTEM_PROMPT, SYSTEM_PROMPT_PATH = _load_system_prompt()
+if SYSTEM_PROMPT:
+    print(f"[llm] system prompt loaded ({len(SYSTEM_PROMPT)} chars) from {SYSTEM_PROMPT_PATH}")
+else:
+    print("[llm] WARNING: system prompt is empty or not found!")
 
 PROVIDER = getattr(config, "LLM_PROVIDER", None) or os.getenv("LLM_PROVIDER", "gemini")
 PROVIDER = PROVIDER.lower()
@@ -126,9 +151,14 @@ def _generate_nvidia(prompt, web_search, temperature, think):
     )
 
     def _call():
+        messages = []
+        if SYSTEM_PROMPT:
+            messages.append({"role": "system", "content": SYSTEM_PROMPT})
+        messages.append({"role": "user", "content": prompt})
+
         resp = client.chat.completions.create(
             model=config.NVIDIA_MODEL,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=4096,
             temperature=temperature,
         )
@@ -161,7 +191,7 @@ def _generate_with_provider(provider: str, prompt: str, web_search: bool,
 
 # ----------------------------------------------------------------------- API
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
-             think: bool = True, provider: str | None = None) -> str:
+             think: bool = True, provider: str | None = None) -> GenerateResult:
     explicit_provider = provider is not None
     active_provider = (provider if explicit_provider else PROVIDER).strip().lower()
     provider_used = active_provider
@@ -195,4 +225,5 @@ def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
     text = (text or "").strip()
     if not text:
         raise RuntimeError(f"LLM ({provider_used}) returned empty response")
-    return text
+    search_grounded = bool(web_search and provider_used == "gemini")
+    return GenerateResult(text, provider=provider_used, search_grounded=search_grounded)

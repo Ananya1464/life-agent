@@ -9,6 +9,28 @@ from life_agent.agent import prompt_loader
 from life_agent.agent import quality
 
 
+def _clean_achieved(text: str) -> str:
+    t = (text or "").strip()
+    if not t or t == "(empty)" or t == "-":
+        return "(empty — nothing logged yet today)"
+    if "Jot down what you actually got done" in t:
+        return "(empty — template placeholder in Notion)"
+    return t
+
+
+def _recent_agent_state() -> str:
+    try:
+        from life_agent.events import store
+        events = store.load_all()
+        completed = [e.get("task") for e in events if e.get("kind") == "task_completed" and e.get("task")]
+        recent = list(dict.fromkeys(completed[-5:]))
+        if recent:
+            return f"Recent completed Life Agent tasks: {', '.join(recent)}"
+    except Exception:
+        pass
+    return "Life Agent running daily routines"
+
+
 def run():
     today, tmrw = dates.today(), dates.tomorrow()
 
@@ -17,16 +39,16 @@ def run():
     try:
         entry = notion_api.find_entry_by_date(dates.iso(today))
         if entry:
-            achievements = notion_api.get_prop_text(entry, "Achievements") or "(empty)"
-            achieved_section = (
+            achievements = _clean_achieved(notion_api.get_prop_text(entry, "Achievements"))
+            achieved_section = _clean_achieved(
                 notion_api.get_section_text(entry["id"], "What I achieved today")
-                or "(empty)"
             )
     except Exception as e:
         print(f"[notion] read failed, planning without today's log: {e}")
 
     events = calendar_feed.events_on(tmrw)
     cal_text = "; ".join(events) if events else "(none / calendar not connected)"
+    agent_state = _recent_agent_state()
 
     # STEP 2 — produce the briefing
     prompt = prompt_loader.load(
@@ -36,6 +58,7 @@ def run():
         ACHIEVEMENTS=achievements,
         ACHIEVED_SECTION=achieved_section,
         CALENDAR_EVENTS=cal_text,
+        RECENT_AGENT_STATE=agent_state,
     )
     plan = llm.generate(prompt)
 
@@ -47,7 +70,8 @@ def run():
             "quota / one reflection prompt)\n"
             f"- Does NOT re-assign anything already completed in: "
             f"{achievements} | {achieved_section}\n"
-            "- Names a specific professor to contact first\n"
+            "- Names a specific real professor from the India/NUS tier to contact first\n"
+            "- No fictional advisors (e.g. Dr. Sarah Chen), thesis chapters, or fictional lab partners\n"
             "- No invented deadlines"
         ),
     )

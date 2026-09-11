@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from life_agent import dates
 from life_agent.notifications import emailer
+from life_agent.agent import grounding
 from life_agent.agent import llm
 from life_agent.integrations import notion_api
 from life_agent.agent import prompt_loader
@@ -30,6 +31,42 @@ def _recently_covered(days: int = 3) -> str:
     return "\n\n".join(out) or "(nothing — first run or no recent entries)"
 
 
+def is_dossier_empty(dossier: str) -> bool:
+    """Check if research dossier has no verified findings or only contains omission placeholders."""
+    if not dossier or not dossier.strip():
+        return True
+    clean = dossier.strip()
+    omission_phrases = [
+        "arXiv query returned no items; omit paper section if no verified sources available",
+        "No verified live web listings captured today; omit opportunities rather than inventing",
+    ]
+    lines = [
+        line.strip()
+        for line in clean.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    if not lines:
+        return True
+    if all(any(op in line for op in omission_phrases) for line in lines):
+        return True
+    return False
+
+
+def deterministic_empty_briefing(day_label: str) -> str:
+    """Generate a deterministic briefing with explicit 'no data' placeholders when evidence is empty."""
+    return (
+        f"**Your AI Edge — {day_label}**\n\n"
+        "**Opportunities**\n"
+        "No verified live listings or fellowships captured today.\n\n"
+        "**Research & Releases**\n"
+        "No verified new research papers captured today.\n\n"
+        "**One High-Leverage Idea**\n"
+        "Focus on core ongoing technical projects and foundations while awaiting new listings.\n\n"
+        "**Market Note**\n"
+        "No verified market updates captured today."
+    )
+
+
 def run():
     d = dates.today()
 
@@ -46,35 +83,53 @@ def run():
     )
     dossier = research.deep_research(goal, n_queries=6)
 
-    # 3. Synthesize the briefing FROM the evidence (with anti-repeat memory)
-    prompt = prompt_loader.load(
-        "ai_edge",
-        TODAY_LABEL=dates.day_label(d),
-        TODAY_ISO=dates.iso(d),
-        RESEARCH_NOTES=dossier,
-        RECENTLY_COVERED=_recently_covered(),
-    )
-    briefing = llm.generate(prompt, think=True)
+    # Empty-context guard: do not invoke LLM synthesis on empty evidence
+    if is_dossier_empty(dossier):
+        print("[ai_edge] research dossier is empty — delivering deterministic no-data briefing")
+        briefing = deterministic_empty_briefing(dates.day_label(d))
+    else:
+        # 3. Synthesize the briefing FROM the evidence (with anti-repeat memory)
+        prompt = prompt_loader.load(
+            "ai_edge",
+            TODAY_LABEL=dates.day_label(d),
+            TODAY_ISO=dates.iso(d),
+            RESEARCH_NOTES=dossier,
+            RECENTLY_COVERED=_recently_covered(),
+        )
+        briefing = llm.generate(prompt, think=True)
 
-    # 4. Verify: HTTP-check every link, then a reviewer pass
-    dead = quality.find_dead_links(briefing)
-    briefing = quality.critique_and_revise(
-        briefing,
-        checklist=(
-            "- Has all 4 sections (Opportunities / Research+news / One leverage "
-            "idea / Market note) and is under ~320 words\n"
-            "- Every opportunity has a link and says why it fits Ananya "
-            "(NLP/RAG, recent grad, remote or India)\n"
-            "- Programs requiring current enrollment are flagged likely-ineligible\n"
-            "- Nothing repeats the 'already covered' items\n"
-            "- No vague filler; no invented deadlines"
-        ),
-        web_search=True,
-        extra_issues=(
-            [f"These links are DEAD or unreachable — replace or remove them: {dead}"]
-            if dead else None
-        ),
-    )
+        provider_name = getattr(briefing, "provider", "unknown")
+        grounded = getattr(briefing, "search_grounded", False)
+        grounding_tag = "search-grounded" if grounded else "ungrounded-fallback"
+        print(f"[ai_edge] briefing synthesized via [provider: {provider_name}/{grounding_tag}]")
+
+        # 4. Verify: HTTP-check every link, then a reviewer pass
+        dead = quality.find_dead_links(briefing)
+        briefing = quality.critique_and_revise(
+            briefing,
+            checklist=(
+                "- Has all 4 sections (Opportunities / Research+news / One leverage "
+                "idea / Market note) and is under ~320 words\n"
+                "- Every opportunity has a link and says why it fits Ananya "
+                "(NLP/RAG, recent grad, remote or India)\n"
+                "- Programs requiring current enrollment are flagged likely-ineligible\n"
+                "- Nothing repeats the 'already covered' items\n"
+                "- No vague filler; no invented deadlines"
+            ),
+            web_search=True,
+            extra_issues=(
+                [f"These links are DEAD or unreachable — replace or remove them: {dead}"]
+                if dead else None
+            ),
+        )
+
+        # Grounding check: verify entities against research dossier
+        unmatched = grounding.check_grounding(briefing, dossier)
+        if unmatched:
+            for entity in unmatched:
+                print(f"[grounding] UNMATCHED ENTITY: {entity}")
+        else:
+            print("[grounding] all extracted entities verified in research dossier.")
     print(briefing)
 
     # 5. Deliver — Notion primary, email secondary

@@ -15,6 +15,12 @@ PRODUCE EXACTLY THESE SECTIONS:
 3. **One leverage idea** — a single concrete way she could use something current: a skill to pick up, a small project to build (ideally extending one of her repos), or a realistic income/portfolio angle. Specific and actionable, not vague.
 4. **Market note (secondary, keep to 2-3 lines)** — one brief, current headline on AI-related markets/stocks/crypto. Clearly the least important section.
 
+CRITICAL GROUNDING & ANTI-HALLUCINATION RULES:
+- Never invent people, professors, advisors, or collaborators.
+- Never invent deadlines, application dates, programs, fellowships, or job listings. Use ONLY verified items that appear in the research dossier below.
+- Never invent URLs. If a URL is not in the research dossier, do not fabricate one.
+- If evidence is unavailable for an opportunity or news category, omit that item or state that no verified items were captured today; never pad with generic placeholders.
+
 Tone: warm, direct, no fluff. Every item must tie back to Ananya specifically. Format in simple markdown. Output only the briefing.
 
 === RESEARCH DOSSIER ===

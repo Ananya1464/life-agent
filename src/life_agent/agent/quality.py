@@ -46,9 +46,10 @@ def critique_and_revise(draft: str, checklist: str, web_search: bool = False,
         return draft
     print("[quality] revising — issues found:\n" + "\n".join(issues))
     return llm.generate(
-        "Revise the draft to fix ALL the issues listed. Keep everything that "
-        "was already good. Output only the revised draft, same format.\n\n"
+        "You are Ananya's chief-of-staff. Revise the draft to fix ALL the issues listed.\n"
+        "Strict rules: Never invent people, advisors, collaborators, deadlines, or courses. Keep only verified, grounded facts.\n"
+        "Output only the revised deliverable, same format.\n\n"
         "ISSUES:\n" + "\n".join(issues) + f"\n\nDRAFT:\n{draft}",
         web_search=web_search,
-        temperature=0.4,
+        temperature=0.3,
     )

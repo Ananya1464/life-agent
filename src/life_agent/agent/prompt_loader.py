@@ -1,7 +1,17 @@
 """Load a prompt template from prompts/ and fill {{PLACEHOLDERS}}."""
 from pathlib import Path
 
-PROMPTS_DIR = Path(__file__).parent / "prompts"
+def _prompts_dir() -> Path:
+    root_prompts = Path(__file__).resolve().parents[3] / "prompts"
+    if root_prompts.is_dir():
+        return root_prompts
+    package_prompts = Path(__file__).parent / "prompts"
+    if package_prompts.is_dir():
+        return package_prompts
+    return Path("prompts")
+
+
+PROMPTS_DIR = _prompts_dir()
 
 
 def load(name: str, **placeholders: str) -> str:
