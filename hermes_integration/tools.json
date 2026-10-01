@@ -1,0 +1,90 @@
+{
+  "tools": [
+    {
+      "name": "query_events",
+      "description": "Query focus events within a date range",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "date_range_start": { "type": "string" },
+          "date_range_end": { "type": "string" },
+          "kind": { "type": "string" }
+        },
+        "required": ["date_range_start", "date_range_end"]
+      }
+    },
+    {
+      "name": "get_today_sessions",
+      "description": "Get all focus sessions for today",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "calculate_metrics",
+      "description": "Calculate activity metrics for a given date",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "metric": { "type": "string" },
+          "date_iso": { "type": "string" }
+        },
+        "required": ["metric", "date_iso"]
+      }
+    },
+    {
+      "name": "search_vault",
+      "description": "Search obsidian notes (placeholder)",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "read_note",
+      "description": "Read an obsidian note securely",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "vault_path": { "type": "string" }
+        },
+        "required": ["vault_path"]
+      }
+    },
+    {
+      "name": "get_recent_activity",
+      "description": "Retrieve activity records from a certain number of days ago.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "days_back": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "name": "read_vault_note",
+      "description": "Read note content securely from the vault.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "relative_path": { "type": "string" }
+        },
+        "required": ["relative_path"]
+      }
+    },
+    {
+      "name": "list_vault_notes",
+      "description": "List note paths beneath the vault root.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "relative_dir": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

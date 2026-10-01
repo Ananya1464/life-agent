@@ -11,6 +11,7 @@ from life_agent import config
 from life_agent import dates
 from life_agent.integrations import notion_api
 from life_agent.events import store
+from life_agent.metrics import master_checklist
 
 
 NORMALIZED_OUTCOME_KINDS = {
@@ -48,6 +49,13 @@ def goal_trajectory(current_progress: float | None, expected_progress: float | N
     gap = current_progress - expected_progress
     status = "On track" if gap >= 0 else "At risk" if gap >= -10 else "Behind"
     return {"status": status, "current": current_progress, "expected": expected_progress}
+
+
+def _workstreams() -> dict:
+    try:
+        return master_checklist.workstreams_status()
+    except FileNotFoundError:
+        return {"items": [], "done": 0, "total": 0, "current": None, "complete": False, "error": "master architecture checklist not found"}
 
 
 def _quote_of_the_day() -> dict:
@@ -171,6 +179,7 @@ def generate_dashboard_data(day=None) -> dict:
         "goals": goal_snapshot,
         "weekly_win": _weekly_win(weekly),
         "attention": {"items": _attention(daily_rows)},
+        "workstreams": _workstreams(),
         "quote": _quote_of_the_day(),
         "notes": daily.get("notes"),
         "state": {
