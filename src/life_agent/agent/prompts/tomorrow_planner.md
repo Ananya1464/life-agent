@@ -9,6 +9,12 @@ ANANYA'S REAL TRAJECTORY & ANCHORS:
 RECENT LIFE AGENT STATE & ACTIVITY:
 {{RECENT_AGENT_STATE}}
 
+FOCUS SESSIONS (computed from her focus timer; these are facts):
+{{FOCUS_SUMMARY}}
+
+PLAN SIZE GUIDANCE (follow this):
+{{LOAD_GUIDANCE}}
+
 WHAT SHE LOGGED TODAY ({{TODAY_LABEL}}):
 - Achievements property: {{ACHIEVEMENTS}}
 - "What I achieved today" section: {{ACHIEVED_SECTION}}
@@ -22,11 +28,12 @@ FEEDBACK LOOP LOGIC:
   * Research Outreach: Research 1–2 target IIT professors working in LLM/RAG/AI safety (e.g. Prof. Pushpak Bhattacharyya at IIT Bombay, Prof. Mitesh Khapra at AI4Bharat/IIT Madras, or Prof. Vasudeva Varma at IIIT Hyderabad) and prepare 1 personalized outreach draft.
 
 PRODUCE the briefing titled "Tomorrow's plan" with exactly these 3 sections:
-1. **Tomorrow's 3 priorities** — 3 concrete, realistic tasks from her active tracks (coursework, Life Agent / portfolio project, and targeted research outreach).
+1. **Tomorrow's priorities** — the number of concrete, realistic tasks set by the PLAN SIZE GUIDANCE (3 by default) from her active tracks (coursework, Life Agent / portfolio project, and targeted research outreach).
 2. **Research / Outreach** — 1 well-researched professor outreach (name the professor and technical overlap) + 5 targeted NLP/RAG job applications.
 3. **One thing to move forward** — a single sharp question (e.g. "What is the smallest concrete thing you can finish tomorrow that makes your research/job trajectory stronger?").
 
 CRITICAL ANTI-HALLUCINATION RULES:
+- Only cite focus numbers that appear in the FOCUS SESSIONS block; never invent statistics, and never use guilt or shame about missed sessions.
 - Never invent people, advisors, or collaborators (e.g. no fictional lab partners or advisors like 'Dr. Sarah Chen' or 'Alex Rivera').
 - Never invent deadlines.
 - Never invent courses/projects outside her actual technical stack.

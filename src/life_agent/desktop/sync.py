@@ -1,5 +1,6 @@
 """Local → Cloud event sync (one-way) — synced by event ID, not timestamp."""
 import json
+import threading
 from pathlib import Path
 
 from life_agent.integrations import notion_api
@@ -28,11 +29,19 @@ def _write_synced_ids(synced_ids: set[str]) -> None:
     SYNCED_IDS_PATH.write_text(json.dumps(sorted(list(synced_ids)), ensure_ascii=False), encoding="utf-8")
 
 
+# Only events that carry user activity are mirrored to Notion (not notification/system noise)
+SYNC_KINDS = frozenset({
+    "focus_started", "focus_completed", "focus_abandoned",
+    "task_planned", "task_completed", "task_partial", "task_never_started",
+    "task_forgot", "task_skipped", "task_not_now", "reflection_added",
+})
+
+
 def events_since_last_sync() -> list[dict]:
-    """Return events whose id is NOT in the synced set."""
+    """Return syncable events whose id is NOT in the synced set."""
     synced = _read_synced_ids()
     all_events = store.load_all()
-    return [e for e in all_events if e.get("id") not in synced]
+    return [e for e in all_events if e.get("id") not in synced and e.get("kind") in SYNC_KINDS]
 
 
 def _event_exists_in_notion(event_id: str) -> bool:
@@ -58,7 +67,8 @@ def _build_notion_properties(event: dict) -> dict:
 
     props = {
         "Name": {"title": [{"text": {"content": event.get("task", event.get("text", "event"))[:100]}}]},
-        "Date": {"date": {"start": date_iso}} if date_iso else {"date": None},
+        # Keep the full timestamp (not just the day) so sessions can be ordered and bucketed by hour
+        "Date": {"date": {"start": ts or date_iso}} if date_iso else {"date": None},
         "Kind": {"select": {"name": kind}} if kind else {"select": None},
         "Task": {"rich_text": [{"text": {"content": event.get("task", event.get("text", ""))[:2000]}}]},
         "Source": {"select": {"name": event.get("source", "unknown")}} if event.get("source") else {"select": None},
@@ -68,7 +78,8 @@ def _build_notion_properties(event: dict) -> dict:
     # Optional fields
     if event.get("intent_id"):
         props["Intent ID"] = {"rich_text": [{"text": {"content": event["intent_id"]}}]}
-    # Duration (sec) omitted - Notion database may not have this property
+    if event.get("duration_seconds") is not None:
+        props["Duration (sec)"] = {"number": event["duration_seconds"]}
 
     # Remove None values - safely handle nested dicts
     filtered = {}
@@ -154,3 +165,33 @@ def sync_events() -> dict:
         "failed_details": failed,
         "existence_check_failed_details": existence_check_failed,
     }
+
+_sync_lock = threading.Lock()
+
+
+def sync_in_background(on_done=None) -> threading.Thread | None:
+    """Run sync_events() on a daemon thread; never raises. Skips if a sync is already running.
+
+    on_done(result: dict | None, error: Exception | None) is called when the sync finishes.
+    """
+    if not _sync_lock.acquire(blocking=False):
+        return None
+
+    def _run():
+        result, error = None, None
+        try:
+            result = sync_events()
+        except Exception as exc:  # offline, Notion down, config missing: never break the caller
+            error = exc
+            print(f"[sync] background sync failed: {exc}")
+        finally:
+            _sync_lock.release()
+        if on_done:
+            try:
+                on_done(result, error)
+            except Exception as exc:
+                print(f"[sync] on_done callback failed: {exc}")
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return thread

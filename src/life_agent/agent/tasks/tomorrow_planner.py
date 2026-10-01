@@ -7,6 +7,7 @@ from life_agent.agent import llm
 from life_agent.integrations import notion_api
 from life_agent.agent import prompt_loader
 from life_agent.agent import quality
+from life_agent.agent import activity_context
 
 
 def _clean_achieved(text: str) -> str:
@@ -49,6 +50,8 @@ def run():
     events = calendar_feed.events_on(tmrw)
     cal_text = "; ".join(events) if events else "(none / calendar not connected)"
     agent_state = _recent_agent_state()
+    activity = activity_context.build()
+    print(f"[activity] plan load mode: {activity.mode}")
 
     # STEP 2 — produce the briefing
     prompt = prompt_loader.load(
@@ -59,6 +62,8 @@ def run():
         ACHIEVED_SECTION=achieved_section,
         CALENDAR_EVENTS=cal_text,
         RECENT_AGENT_STATE=agent_state,
+        FOCUS_SUMMARY=activity.summary,
+        LOAD_GUIDANCE=activity.load_guidance,
     )
     plan = llm.generate(prompt)
 
@@ -68,6 +73,7 @@ def run():
         checklist=(
             "- Under 200 words, exactly 3 sections (3 priorities / outreach "
             "quota / one reflection prompt)\n"
+            f"- Follows this plan-size guidance: {activity.load_guidance}\n"
             f"- Does NOT re-assign anything already completed in: "
             f"{achievements} | {achieved_section}\n"
             "- Names a specific real professor from the India/NUS tier to contact first\n"

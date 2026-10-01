@@ -53,6 +53,11 @@ REPLIES_DB_ID = os.getenv("REPLIES_DB_ID", "")
 LIFE_OS_METRICS_DB_ID = os.getenv(
     "LIFE_OS_METRICS_DB_ID", "35496a3a-c8ba-4fd6-81bd-66f66719f8f2"
 )
+# "Life Agent Events" database: desktop focus events are synced here so the cloud agent can read them
+EVENTS_SYNC_DB_ID = os.getenv("EVENTS_SYNC_DB_ID", "5b951c0f-2391-40fb-8a9f-c39b91a74f2e")
+EVENTS_SYNC_DATA_SOURCE_ID = os.getenv(
+    "EVENTS_SYNC_DATA_SOURCE_ID", "2c16f9c3-cbb0-43c3-9d87-a710e4f1e368"
+)
 # Life areas and goals database
 LIFE_AREAS_GOALS_DB_ID = os.getenv(
     "LIFE_AREAS_GOALS_DB_ID", "8f4d05f9-dfa1-4cea-995c-d92ca00b540d"

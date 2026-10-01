@@ -23,15 +23,16 @@ TASKS = (
 def run(task: str):
     if task not in TASKS:
         sys.exit(f"Unknown task '{task}'. Choose from: {', '.join(TASKS)}")
-    mod = importlib.import_module(f"life_agent.agent.tasks.{task}")
     event_model.record_task_started(task, date_iso=dates.today().isoformat())
     try:
+        mod = importlib.import_module(f"life_agent.agent.tasks.{task}")
         outbound.send_task_start_notification(task)
         mod.run()
         event_model.record_task_completed(task, date_iso=dates.today().isoformat())
         metrics.update_metrics()
     except Exception as e:
         store.append("task_failed", {"task": task, "error": str(e)})
+        outbound.send_failure_notification(task, e)
         raise
 
 
