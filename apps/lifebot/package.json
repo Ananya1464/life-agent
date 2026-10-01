@@ -1,0 +1,14 @@
+{
+  "name": "lifebot",
+  "productName": "Lifebot",
+  "version": "1.0.0",
+  "description": "Lifebot: chat assistant, typewriter tasks, Pomodoro and reminders in one desktop app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "electron": "^32.0.0"
+  }
+}
