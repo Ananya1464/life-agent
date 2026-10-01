@@ -12,8 +12,12 @@ import os
 from pathlib import Path
 from life_agent.tools import activity
 
-# Canonical vault root path
-VAULT_ROOT = Path(r"C:\Users\Ananya\OneDrive\Desktop\ANANYA-OS").resolve()
+# Canonical vault root path. Override with LIFE_AGENT_VAULT_ROOT; the default is the
+# ANANYA-OS vault on the current user's OneDrive desktop.
+VAULT_ROOT = Path(
+    os.environ.get("LIFE_AGENT_VAULT_ROOT")
+    or Path.home() / "OneDrive" / "Desktop" / "ANANYA-OS"
+).resolve()
 
 def _validate_vault_path(relative_path: str) -> Path:
     """Validate and resolve path, ensuring it stays within VAULT_ROOT."""

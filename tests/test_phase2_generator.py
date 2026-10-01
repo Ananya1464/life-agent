@@ -1,27 +1,42 @@
-﻿import sys
-import os
+import json
+import sys
 from pathlib import Path
-from datetime import date
 
-# Add repository root to PYTHONPATH
-sys.path.insert(0, str(Path(os.getcwd()) / "src"))
+# Make life_agent importable when run as a script (pytest resolves it via the installed package)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from life_agent.obsidian.generator import generate_daily_note
 
-def test_generate_daily_note():
-    today = date.today().isoformat()
-    markdown = generate_daily_note(today)
-    
-    # Assertions - loose checks to avoid markup issues
+
+def _write_events(base: Path, events: list[dict]) -> None:
+    (base / "data").mkdir()
+    (base / "data" / "events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8"
+    )
+
+
+def test_generate_daily_note(tmp_path, monkeypatch):
+    # Events are read from ./data/events.jsonl, so use an isolated working directory
+    monkeypatch.chdir(tmp_path)
+    date_iso = "2026-09-21"
+    _write_events(tmp_path, [
+        {"id": "1", "ts": "2026-09-21T10:00:00Z", "kind": "focus_started", "date": date_iso,
+         "task": "Test Pomodoro Session", "intent_id": "p:s1", "source": "pomodoro_app"},
+        {"id": "2", "ts": "2026-09-21T10:25:00Z", "kind": "focus_completed", "date": date_iso,
+         "task": "Test Pomodoro Session", "duration_seconds": 1500, "intent_id": "p:s1",
+         "source": "pomodoro_app"},
+    ])
+
+    markdown = generate_daily_note(date_iso)
+
     assert "Daily Sessions" in markdown
     assert "Test Pomodoro Session" in markdown
     assert "Completed" in markdown
-    assert "25 minutes" in markdown
+    assert "25 min" in markdown
 
-if __name__ == "__main__":
-    try:
-        test_generate_daily_note()
-        print("PHASE_2_PASSED")
-    except Exception as e:
-        print(f"Phase 2 generator test failed: {e}")
-        sys.exit(1)
+
+def test_generate_daily_note_no_sessions(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write_events(tmp_path, [])
+
+    assert "No focus sessions recorded." in generate_daily_note("2026-09-21")

@@ -12,7 +12,8 @@ def get_focus_sessions(date_iso: str) -> list[dict]:
     """
     Get all focus sessions for a given date (local YYYY-MM-DD).
 
-    Pairs focus_started with focus_completed/abandoned via intent_id.
+    Pairs focus_started with focus_completed/abandoned chronologically within each intent_id,
+    so a task run more than once under the same intent_id yields one session per run.
     Returns list of sessions with: date, task, start, end, duration_seconds, source, status.
     """
     # Check if events file exists
@@ -42,63 +43,65 @@ def get_focus_sessions(date_iso: str) -> list[dict]:
                 by_intent[intent_id] = []
             by_intent[intent_id].append(event)
 
-    # Pair started with completed/abandoned
+    # Walk each intent's events chronologically. A focus_started opens a session, the next
+    # completed/abandoned closes it. A task can be run several times under one intent_id
+    # (e.g. START, STOP, START, finish), so every end event yields its own session.
     sessions = []
     for intent_id, events_list in by_intent.items():
-        # Sort by timestamp (chronological)
         events_list = sorted(events_list, key=lambda e: e.get("ts", ""))
 
-        started = next((e for e in events_list if e.get("kind") == "focus_started"), None)
-        end_event = next((e for e in events_list if e.get("kind") in ["focus_completed", "focus_abandoned"]), None)
-
-        if started and end_event:
-            # Paired session
-            session = {
-                "date": date_iso,
-                "task": started.get("task", "(unknown)"),
-                "start": started.get("ts"),
-                "end": end_event.get("ts"),
-                "duration_seconds": end_event.get("duration_seconds"),
-                "source": started.get("source", "unknown"),
-                "status": "completed" if end_event.get("kind") == "focus_completed" else "abandoned"
-            }
-            sessions.append(session)
-        elif started:
-            # Unfinished session
-            session = {
-                "date": date_iso,
-                "task": started.get("task", "(unknown)"),
-                "start": started.get("ts"),
-                "end": None,
-                "duration_seconds": None,
-                "source": started.get("source", "unknown"),
-                "status": "unfinished"
-            }
-            sessions.append(session)
-        elif end_event:
-            # Standalone end event
-            duration = end_event.get("duration_seconds", 0)
-            end_ts = end_event.get("ts")
-            # Calculate start as end_ts minus duration_seconds
-            try:
-                end_dt = datetime.fromisoformat(end_ts.replace("Z", "+00:00"))
-                start_dt = end_dt - timedelta(seconds=duration)
-                start_ts = start_dt.isoformat().replace("+00:00", "Z")
-            except:
-                start_ts = end_ts
-
-            session = {
-                "date": date_iso,
-                "task": end_event.get("task", "(unknown)"),
-                "start": start_ts,
-                "end": end_ts,
-                "duration_seconds": duration,
-                "source": end_event.get("source", "unknown"),
-                "status": "completed" if end_event.get("kind") == "focus_completed" else "abandoned"
-            }
-            sessions.append(session)
+        open_start = None
+        for event in events_list:
+            kind = event.get("kind")
+            if kind == "focus_started":
+                if open_start is not None:
+                    sessions.append(_unfinished_session(date_iso, open_start))
+                open_start = event
+            else:
+                sessions.append(_ended_session(date_iso, open_start, event))
+                open_start = None
+        if open_start is not None:
+            sessions.append(_unfinished_session(date_iso, open_start))
 
     return sessions
+
+
+def _unfinished_session(date_iso: str, started: dict) -> dict:
+    return {
+        "date": date_iso,
+        "task": started.get("task", "(unknown)"),
+        "start": started.get("ts"),
+        "end": None,
+        "duration_seconds": None,
+        "source": started.get("source", "unknown"),
+        "status": "unfinished"
+    }
+
+
+def _ended_session(date_iso: str, started: Optional[dict], end_event: dict) -> dict:
+    """Session closed by a completed/abandoned event; started is None if no start was recorded."""
+    end_ts = end_event.get("ts")
+    duration = end_event.get("duration_seconds") if started else end_event.get("duration_seconds", 0)
+    if started:
+        start_ts = started.get("ts")
+    else:
+        # No matching start: derive it as end_ts minus duration_seconds
+        try:
+            end_dt = datetime.fromisoformat(end_ts.replace("Z", "+00:00"))
+            start_dt = end_dt - timedelta(seconds=duration or 0)
+            start_ts = start_dt.isoformat().replace("+00:00", "Z")
+        except (AttributeError, TypeError, ValueError):
+            start_ts = end_ts
+    source_event = started or end_event
+    return {
+        "date": date_iso,
+        "task": source_event.get("task", "(unknown)"),
+        "start": start_ts,
+        "end": end_ts,
+        "duration_seconds": duration,
+        "source": source_event.get("source", "unknown"),
+        "status": "completed" if end_event.get("kind") == "focus_completed" else "abandoned"
+    }
 
 
 def get_local_date_iso(offset_days: int = 0) -> str:

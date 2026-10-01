@@ -103,6 +103,22 @@ class TestQueries(unittest.TestCase):
 
         self.assertEqual(len(sessions), 2)
 
+    # Test: abandon then retry under the same intent_id
+    def test_abandon_then_complete_same_intent(self):
+        """Test: START, STOP (abandoned), START, finish (completed) yields two sessions."""
+        self.write_event("focus_started", date="2026-09-21", task="Task A", intent_id="task-1", source="focus_tab", ts="2026-09-21T10:00:00Z")
+        self.write_event("focus_abandoned", date="2026-09-21", task="Task A", duration_seconds=300, intent_id="task-1", source="focus_tab", ts="2026-09-21T10:05:00Z")
+        self.write_event("focus_completed", date="2026-09-21", task="Task A", duration_seconds=1500, intent_id="task-1", source="focus_tab", ts="2026-09-21T11:00:00Z")
+
+        result = self.run_query("2026-09-21", json_flag=True)
+        sessions = self.load_json_output(result)
+
+        self.assertEqual([s["status"] for s in sessions], ["abandoned", "completed"])
+        self.assertEqual(sessions[0]["duration_seconds"], 300)
+        self.assertEqual(sessions[1]["duration_seconds"], 1500)
+        # Second run has no recorded start (deduped), so it is derived from end - duration
+        self.assertEqual(sessions[1]["start"], "2026-09-21T10:35:00Z")
+
     # Test: unfinished session
     def test_unfinished_session(self):
         """Test: started event without end gets status 'unfinished'."""
