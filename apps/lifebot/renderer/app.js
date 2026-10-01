@@ -33,7 +33,7 @@
     if (name === 'chat') $('chat-input').focus();
     if (name === 'tasks') $('task-input').focus();
   }
-  document.querySelectorAll('.nav').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  document.querySelectorAll('.nav').forEach((b) => b.addEventListener('click', () => { Sfx.play('click'); showTab(b.dataset.tab); }));
 
   async function openDashboard() {
     toast('Building your dashboard...');
@@ -128,7 +128,7 @@
       if (t.phase && t.phase !== phase) { phase = t.phase; list.append(h('div', { class: 'phase', text: phase })); }
       const box = h('button', {
         class: 'box', type: 'button', 'aria-label': t.checked ? 'Mark not done' : 'Mark done',
-        onclick: () => api.tasks.toggle({ lineIndex: t.lineIndex, checked: !t.checked }),
+        onclick: () => { Sfx.play(t.checked ? 'click' : 'done'); api.tasks.toggle({ lineIndex: t.lineIndex, checked: !t.checked }); },
       }, t.checked ? '✓' : '');
       const row = h('div', { class: `task${t.checked ? ' done' : ''}` }, box,
         h('span', { class: 'task-text', text: t.text }),
@@ -141,6 +141,7 @@
   }
 
   async function startTask(t) {
+    Sfx.play('start');
     await api.pomodoro.start({ id: t.id, text: t.text });
     showTab('focus');
   }
@@ -199,7 +200,7 @@
   });
   $('focus-pause').addEventListener('click', () => api.pomodoro.pause());
   $('focus-resume').addEventListener('click', () => api.pomodoro.resume());
-  $('focus-stop').addEventListener('click', () => api.pomodoro.stop());
+  $('focus-stop').addEventListener('click', () => { Sfx.play('click'); api.pomodoro.stop(); });
   for (const [id, key] of [['cfg-focus', 'focusMin'], ['cfg-break', 'breakMin']]) {
     $(id).addEventListener('change', async () => {
       const n = parseInt($(id).value, 10);
@@ -291,6 +292,55 @@
     $('sync-msg').textContent = !r.ok ? `Failed: ${r.error}` : r.result.skipped_empty ? 'Nothing new to sync.' : `Synced ${r.result.pushed} event(s)${r.result.failed ? `, ${r.result.failed} failed` : ''}.`;
   });
 
+  // ---------------------------------------------------------------- game HUD
+  const XP_BLOCKS = 14;
+  let lastLevel = null;
+
+  function renderHud(g) {
+    if (!g) return;
+    $('hud-total').textContent = String(g.total);
+    $('hud-today').textContent = `DIAMONDS +${g.today} TODAY`;
+    $('hud-lv').textContent = `LV ${g.level} ${String(g.title || '').toUpperCase()}`;
+    $('hud-streak').textContent = `${g.streak} DAY${g.streak === 1 ? '' : 'S'}`;
+    $('hud-xptext').textContent = `${g.xp}/${g.xp_needed} TO LV ${g.level + 1}`;
+    const filled = Math.round((XP_BLOCKS * g.xp_pct) / 100);
+    const bar = $('hud-xp');
+    bar.replaceChildren(...Array.from({ length: XP_BLOCKS }, (_, i) => h('span', { class: i < filled ? 'on' : '' })));
+    lastLevel = g.level;
+  }
+
+  function floatText(text, cls) {
+    const el = h('div', { class: `float ${cls || ''}`, text });
+    document.body.append(el);
+    setTimeout(() => el.remove(), 1600);
+  }
+
+  function onReward(reward) {
+    renderHud(reward.stats);
+    if (reward.level_up) {
+      Sfx.play('levelup');
+      floatText(`LEVEL UP! LV ${reward.stats.level}`, 'big');
+    } else if (reward.diamonds > 0) {
+      Sfx.play('diamond');
+      floatText(`+${reward.diamonds} DIAMONDS`);
+    }
+  }
+
+  function setSound(on) {
+    Sfx.setEnabled(on);
+    $('sound-toggle').textContent = on ? 'SFX ON' : 'SFX OFF';
+    $('sound-toggle').classList.toggle('off', !on);
+  }
+
+  $('sound-toggle').addEventListener('click', async () => {
+    const on = !Sfx.isEnabled();
+    state.settings = await api.settings.set({ sound: on });
+    setSound(on);
+    if (on) Sfx.play('click');
+  });
+  $('hud-gem').append(window.Pixel.sprite('gem', 4));
+  $('hud-flame').append(window.Pixel.sprite('flame', 4));
+
   // ---------------------------------------------------------------- boot
   async function boot() {
     const init = await api.init();
@@ -302,6 +352,9 @@
     if (!init.chat.length) greet(); else $('chat-chips').hidden = true;
     $('rem-at').value = quickTime('1h');
     renderTasks(); renderReminders(); renderSettings(); renderPomodoro(init.pomodoro);
+    setSound(init.settings.sound !== false);
+    renderHud(init.game);
+    api.game.stats().then(renderHud);
 
     api.on.tasks((p) => { state.tasks = p.tasks; state.markdown = p.markdown; renderTasks(); });
     api.on.reminders((list) => { state.reminders = list; renderReminders(); });
@@ -310,6 +363,8 @@
     api.on.bridge(setBridge);
     api.on.navigate(showTab);
     api.on.toast(toast);
+    api.on.game(renderHud);
+    api.on.reward(onReward);
     api.on.settings((s) => { state.settings = s; renderSettings(); });
     showTab('chat');
   }

@@ -20,7 +20,7 @@ const { createStore } = require('./lib/store.js');
 const APP_ID = 'com.ananya.lifebot';
 const HIDDEN_START = process.argv.includes('--hidden');
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
-const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, focusMin: 25, breakMin: 5 };
+const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, focusMin: 25, breakMin: 5 };
 const OUTBOX_MAX = 500;
 
 let win = null;
@@ -147,7 +147,8 @@ async function flushOutbox() {
     while ((store.get().outbox || []).length) {
       const item = store.get().outbox[0];
       try {
-        await bridge.request(item.method, item.params, 30000);
+        const result = await bridge.request(item.method, item.params, 30000);
+        if (result && result.reward) announceReward(result.reward);
       } catch (err) {
         if (/^ValueError|^KeyError|^TypeError/.test(err.message)) {
           console.error('dropping invalid outbox item:', err.message);   // would never succeed
@@ -167,6 +168,21 @@ function refreshDataInBackground() {
   if (!bridge) return;
   bridge.request('sync', {}, 120000).catch((err) => console.log('startup sync skipped:', err.message));
   bridge.request('refresh_dashboard', {}, 60000).catch((err) => console.log('startup dashboard skipped:', err.message));
+}
+
+/** Latest game stats (diamonds, level, streak) for the HUD; null while the agent is unavailable. */
+let gameStats = null;
+
+function announceReward(reward) {
+  gameStats = reward.stats;
+  send('game', gameStats);
+  if (reward.diamonds > 0 || reward.level_up) send('reward', reward);
+}
+
+async function refreshGame() {
+  if (!bridge) return;
+  try { gameStats = await bridge.request('game_stats', {}, 15000); send('game', gameStats); }
+  catch (err) { console.log('game stats unavailable:', err.message); }
 }
 
 // ------------------------------------------------------------------ pomodoro (authoritative clock)
@@ -327,7 +343,10 @@ async function chat({ message, history }) {
 
 // ------------------------------------------------------------------ ipc
 function registerIpc() {
+  ipcMain.handle('game:stats', async () => { await refreshGame(); return gameStats; });
+
   ipcMain.handle('app:init', () => ({
+    game: gameStats,
     ...tasksPayload(),
     reminders: remindersView(),
     settings: settings(),
@@ -385,6 +404,7 @@ function registerIpc() {
     if (typeof patch.ntfyTopic === 'string') clean.ntfyTopic = patch.ntfyTopic.trim();
     if (typeof patch.openAtLogin === 'boolean') clean.openAtLogin = patch.openAtLogin;
     if (typeof patch.notifications === 'boolean') clean.notifications = patch.notifications;
+    if (typeof patch.sound === 'boolean') clean.sound = patch.sound;
     for (const k of ['focusMin', 'breakMin']) {
       if (Number.isFinite(patch[k])) clean[k] = Math.min(Math.max(Math.round(patch[k]), 1), 120);
     }
@@ -493,6 +513,7 @@ app.whenReady().then(async () => {
   await setupBackend();
   recordPlanned();
   refreshDataInBackground();
+  refreshGame();
   checkReminders();                                       // catch anything that came due while the app was closed
   setInterval(flushOutbox, 60000);
   if (SMOKE_DIR) runSmoke(SMOKE_DIR).catch((err) => { console.error('SMOKE FAILED', err); app.exit(2); });

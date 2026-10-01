@@ -1,3 +1,4 @@
+@font-face { font-family: "Press Start 2P"; src: url("../assets/fonts/PressStart2P-Regular.ttf") format("truetype"); font-display: block; }
 :root {
   --bg: #0b0a24; --bg2: #15123d; --card: #15123d; --line: #3b34a8;
   --text: #ece9ff; --muted: #938ec9; --accent: #38e8ff; --accent2: #ff4fd8;
@@ -131,3 +132,32 @@ input[type=number] { width: 80px; }
 .alert-title { color: var(--orange); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
 .alert-text { font-weight: 600; margin-bottom: 10px; overflow-wrap: anywhere; }
 ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+
+
+/* ---- game HUD ---- */
+.hud { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 0 4px 6px; padding: 8px 14px;
+  background: var(--bg2); border: 4px solid #ffd23f; box-shadow: inset 0 0 0 2px var(--bg), 4px 4px 0 #05041a; }
+.hud-item { display: flex; align-items: center; gap: 10px; }
+.hud-big { font-size: 14px; color: var(--accent); } .hud-item:nth-child(3) .hud-big { color: var(--orange); }
+.hud-sub { font-size: 8px; color: var(--muted); margin-top: 5px; letter-spacing: .04em; }
+.hud-lv { font-size: 10px; color: #ffd23f; margin-bottom: 6px; }
+.xp { display: flex; gap: 2px; margin-bottom: 4px; }
+.xp span { width: 10px; height: 12px; background: #2a2570; border: 2px solid #05041a; }
+.xp span.on { background: var(--accent); }
+.sprite { image-rendering: pixelated; flex: none; }
+.sound { padding: 6px 10px; font-size: 8px; background: var(--bg); color: var(--green); border-color: var(--green); }
+.sound.off { color: var(--muted); border-color: var(--line); }
+.float { position: fixed; left: 50%; top: 38%; transform: translateX(-50%); z-index: 50; pointer-events: none; font-size: 18px;
+  color: #ffd23f; text-shadow: 3px 3px 0 #05041a; animation: floatup 1.5s steps(12) forwards; }
+.float.big { font-size: 26px; color: var(--accent2); }
+@keyframes floatup { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -90px; } }
+
+/* ---- layout fixes: HUD + app share the window height; pixel font needs room ---- */
+html, body { line-height: 1.6; }
+body { display: flex; flex-direction: column; }
+.app { flex: 1; min-height: 0; height: auto; }
+.hud { flex: none; }
+.ring-time { font-size: 30px !important; letter-spacing: 0; }
+.ring-phase { font-size: 9px !important; margin-top: 10px; }
+.focus-task { font-size: 12px !important; line-height: 1.8; }
+.brand-sub { line-height: 1.5; }

@@ -22,9 +22,10 @@ contextBridge.exposeInMainWorld('lifebot', {
   chat: { send: invoke('chat:send'), clear: invoke('chat:clear') },
   dashboard: { open: invoke('dashboard:open') },
   sync: { now: invoke('sync:now') },
+  game: { stats: invoke('game:stats') },
   on: {
     pomodoro: on('pomodoro:state'), tasks: on('tasks:changed'), reminders: on('reminders:changed'),
     reminderFired: on('reminder:fired'), bridge: on('bridge:status'), navigate: on('navigate'),
-    toast: on('toast'), settings: on('settings:changed'),
+    toast: on('toast'), settings: on('settings:changed'), game: on('game'), reward: on('reward'),
   },
 });
