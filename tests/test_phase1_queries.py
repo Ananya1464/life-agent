@@ -9,6 +9,8 @@ from datetime import date, timedelta
 from hashlib import sha256
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 class TestQueries(unittest.TestCase):
     """Test the query layer for focus events."""
@@ -16,7 +18,7 @@ class TestQueries(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Record hash of real data/events.jsonl if it exists."""
-        cls.real_events_path = Path("D:/life-agent/data/events.jsonl")
+        cls.real_events_path = REPO_ROOT / "data" / "events.jsonl"
         if cls.real_events_path.exists():
             with open(cls.real_events_path, "rb") as f:
                 cls.real_events_hash_before = sha256(f.read()).hexdigest()
@@ -65,7 +67,7 @@ class TestQueries(unittest.TestCase):
             args,
             capture_output=True,
             cwd=self.temp_dir,
-            env={**os.environ, "PYTHONPATH": "D:\\life-agent\\src"}
+            env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
         )
         return result
 

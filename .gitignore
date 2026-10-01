@@ -11,3 +11,4 @@ filter_repo_scrub.py
 *.egg-info/
 src/*.egg-info/
 scratch/
+.freebuff/
