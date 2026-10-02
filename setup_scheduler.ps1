@@ -1,4 +1,4 @@
-# Creates 4 Windows scheduled tasks, one per life-agent task at its intended time.
+﻿# Creates the Windows scheduled tasks, one per life-agent task at its intended time.
 # Run as Administrator:
 #   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 #   .\setup_scheduler.ps1
@@ -14,18 +14,20 @@ $Schedule = @(
     @{ Task = "evening_checkin";  Time = "21:30" },
     @{ Task = "goal_planner";     Time = "21:45" },
     @{ Task = "tomorrow_planner"; Time = "22:00" },
-    @{ Task = "set_reminders";    Time = "22:15" }
+    @{ Task = "set_reminders";    Time = "22:15" },
+    @{ Task = "weekly_review";    Time = "20:00"; Day = "Sunday" }
 )
 
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
 foreach ($item in $Schedule) {
     $name = "life-agent-$($item.Task)"
-    $trigger = New-ScheduledTaskTrigger -Daily -At $item.Time
+    if ($item.Day) { $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $item.Day -At $item.Time }
+    else { $trigger = New-ScheduledTaskTrigger -Daily -At $item.Time }
     $action = New-ScheduledTaskAction -Execute $Runner -Argument $item.Task -WorkingDirectory $ProjectPath
     try {
         Register-ScheduledTask -TaskName $name -Trigger $trigger -Action $action `
-            -Settings $settings -Description "life-agent $($item.Task) daily at $($item.Time)" -Force | Out-Null
+            -Settings $settings -Description "life-agent $($item.Task) at $($item.Time)" -Force | Out-Null
         Write-Host "[OK] $name -> daily at $($item.Time)"
     }
     catch {
