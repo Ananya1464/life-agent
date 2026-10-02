@@ -76,6 +76,17 @@ def list_notes(args: dict, state: dict) -> ToolResult:
                       or "No notes found.")
 
 
+def project_status(args: dict, state: dict) -> ToolResult:
+    """Read-only git status of the repos she opted in to (LIFE_AGENT_PROJECTS). Never edits anything."""
+    from life_agent.agent import project_state
+    projects = project_state.configured_projects()
+    if not projects:
+        return ToolResult("No projects are configured for tracking. Ask Ananya which repositories to "
+                          "track (set LIFE_AGENT_PROJECTS), and do not guess their state.")
+    text = project_state.build(projects, tasks_file=None)
+    return ToolResult(text + "\nThis is git state only: it says nothing about whether tests pass.")
+
+
 def list_tasks(args: dict, state: dict) -> ToolResult:
     tasks = state.get("tasks") or []
     if not tasks:
@@ -130,6 +141,7 @@ def start_focus(args: dict, state: dict) -> ToolResult:
 
 TOOLS = {
     "focus_summary": (focus_summary, "Facts about her focus sessions over the last 7 days.", {}),
+    "project_status": (project_status, "Verified, read-only git state (branch, recent commits, uncommitted files) of the projects she tracks. Does not run tests.", {}),
     "list_tasks": (list_tasks, "Her current task list.", {}),
     "list_reminders": (list_reminders, "Her upcoming reminders.", {}),
     "add_task": (add_task, "Add a task to her list.", {"text": "task text"}),

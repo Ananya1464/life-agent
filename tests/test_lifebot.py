@@ -246,3 +246,47 @@ def test_reward_failure_never_breaks_recording(recorded, monkeypatch):
 def test_game_stats_method_omits_the_per_day_table(recorded):
     r = bridge.dispatch(json.dumps({"id": 1, "method": "game_stats"}))["result"]
     assert r["level"] == 1 and "per_day" not in r
+
+
+# ---------------------------------------------------------------- chief-of-staff behaviour
+def test_prompt_carries_the_honesty_and_planning_principles():
+    gen = Script('{"reply": "ok"}')
+    chat.respond("plan my day", generate=gen, now=NOW)
+    p = gen.prompts[0]
+    for needle in ("VERIFIED", "Ask before assuming", "Never claim an action happened", "Never invent deadlines",
+                   "one phase, one decision, one artifact", "proposed, in progress, verified, blocked",
+                   "end-of-day report", "ask before any consequential action"):
+        assert needle.lower() in p.lower(), needle
+    assert "project_status" in p
+
+
+def test_profile_is_loaded_when_present_and_flagged_when_absent(tmp_path, monkeypatch):
+    monkeypatch.setenv("LIFE_AGENT_PROFILE", str(tmp_path / "missing.md"))
+    assert "none saved yet" in chat._profile_block()
+    profile = tmp_path / "profile.md"
+    profile.write_text("Goal: finish the approval gate.\n" + "x" * 5000, encoding="utf-8")
+    monkeypatch.setenv("LIFE_AGENT_PROFILE", str(profile))
+    block = chat._profile_block()
+    assert "finish the approval gate" in block and "not independently verified" in block
+    assert len(block) < chat.PROFILE_MAX_CHARS + 200          # bounded: never floods the prompt
+
+
+def test_project_status_asks_instead_of_guessing_when_nothing_is_configured(monkeypatch):
+    monkeypatch.setenv("LIFE_AGENT_PROJECTS", "")
+    result = tools.project_status({}, {})
+    assert "No projects are configured" in result.text and "do not guess" in result.text
+
+
+def test_project_status_reports_git_state_and_its_limits(tmp_path, monkeypatch):
+    import subprocess
+    repo = tmp_path / "proj"
+    repo.mkdir()
+    for args in (["init", "-q"], ["config", "user.email", "t@e.com"], ["config", "user.name", "T"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    (repo / "a.txt").write_text("1")
+    subprocess.run(["git", "-C", str(repo), "add", "a.txt"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "first commit"], check=True, capture_output=True)
+    monkeypatch.setenv("LIFE_AGENT_PROJECTS", f"Proj={repo}")
+    text = tools.project_status({}, {}).text
+    assert "Proj (branch" in text and "first commit" in text
+    assert "says nothing about whether tests pass" in text       # never implies verification it did not do
