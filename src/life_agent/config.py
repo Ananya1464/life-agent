@@ -18,9 +18,16 @@ def _load_dotenv():
 _load_dotenv()
 
 # --- LLM brain ---
-# Primary provider: "gemini" (default) or "nvidia"
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+# Primary provider: "omniroute", "gemini" (default) or "nvidia"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER") or ("omniroute" if os.getenv("OMNIROUTE_API_KEY") else "gemini")
 LLM_MAX_RETRIES = os.getenv("LLM_MAX_RETRIES", "3")
+OMNIROUTE_API_KEY = os.getenv("OMNIROUTE_API_KEY", "")
+# OmniRoute is an OpenAI-compatible gateway (runs locally by default). Models are tried in order;
+# real Claude models only (they can be rate limited; the chain then continues to Gemini and NVIDIA).
+# NOTE: auto/claude-* aliases are NOT guaranteed to be Claude; they route to whatever is available.
+OMNIROUTE_BASE_URL = os.getenv("OMNIROUTE_BASE_URL", "http://localhost:20128/v1")
+OMNIROUTE_MODELS = [m.strip() for m in os.getenv(
+    "OMNIROUTE_MODELS", "antigravity/claude-sonnet-4-6,antigravity/claude-opus-4-6-thinking").split(",") if m.strip()]
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
@@ -68,6 +75,8 @@ LIFE_OS_DASHBOARD_PAGE_ID = os.getenv(
 )
 
 # --- Email (Gmail SMTP with an App Password) ---
+# Email is OFF unless LIFE_AGENT_EMAIL=on (outputs still go to Notion, Obsidian and the Lifebot app).
+EMAIL_ENABLED = os.getenv("LIFE_AGENT_EMAIL", "off").strip().lower() in ("on", "1", "true", "yes")
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS", "your-email@gmail.com")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")  # empty = skip email silently
 

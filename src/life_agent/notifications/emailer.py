@@ -7,6 +7,9 @@ from life_agent import config
 
 
 def send_email(subject: str, body_markdown: str, debug: bool = False) -> str:
+    if not config.EMAIL_ENABLED and not debug:
+        print(f"[email] disabled (LIFE_AGENT_EMAIL is off) - not sending: {subject}")
+        return ""
     if not config.GMAIL_ADDRESS or not config.GMAIL_APP_PASSWORD:
         raise ValueError("GMAIL_ADDRESS or GMAIL_APP_PASSWORD not configured")
 
