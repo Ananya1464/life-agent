@@ -5,6 +5,7 @@ from datetime import timedelta
 from life_agent import dates
 from life_agent.notifications import emailer
 from life_agent.agent import llm
+from life_agent.agent import activity_context
 from life_agent.integrations import notion_api
 from life_agent.agent import prompt_loader
 
@@ -56,6 +57,7 @@ def run():
         WEEK_LABEL=week_label,
         DAILY_SUMMARIES=summaries_text,
         GOALS_VS_ACHIEVEMENTS=gva_text,
+        FOCUS_SUMMARY=activity_context.build(days=7).summary,
     )
     review = llm.generate(prompt)
     print(review)

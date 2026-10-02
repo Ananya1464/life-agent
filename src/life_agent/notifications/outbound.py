@@ -231,3 +231,25 @@ def send_prompt_email(slot: str, subject_text: str, body: str) -> str:
 
 def send_task_start_notification(task_name: str) -> str:
     return send_notification("task_start", task_name=task_name)
+
+
+_SECRET_RE = re.compile(r"(?i)\b(api[_-]?key|key|token|secret|password)=\S+")
+
+
+def send_failure_notification(task_name: str, error: Exception | str) -> None:
+    """Tell Ananya a scheduled task failed (ntfy and/or email). Best-effort: never raises.
+
+    Cloud runs lose their local event file when the runner exits, so this is the only reliable
+    signal that a run broke.
+    """
+    detail = _SECRET_RE.sub(r"\1=[redacted]", str(error))[:300]
+    title = f"Life Agent: {task_name} failed"
+    body = f"The scheduled task '{task_name}' failed and did not complete.\n\nError: {detail}"
+    for send in (
+        lambda: _send_ntfy(title, body, tags="warning"),
+        lambda: _send_email(title, body),
+    ):
+        try:
+            send()
+        except Exception as exc:
+            print(f"[notify] failure notice channel unavailable: {str(exc)[:120]}")

@@ -6,7 +6,7 @@ REM .env is auto-loaded by config.py, so no env parsing needed here.
 cd /d %~dp0
 if not exist logs mkdir logs
 
-for /f "tokens=2-4 delims=/ " %%a in ('date /t') do (set mydate=%%c-%%a-%%b)
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set mydate=%%i
 set LOGFILE=logs\daily_%mydate%.log
 
 if "%~1"=="" (
@@ -15,7 +15,8 @@ if "%~1"=="" (
 )
 
 echo [%date% %time%] ===== Running task: %1 ===== >> %LOGFILE%
-.venv\Scripts\python.exe -m life_agent.agent.main %1 >> %LOGFILE% 2>&1
+set LLM_MAX_RETRIES=1
+.venv\Scripts\python.exe -m life_agent.agent.main %1 >> %LOGFILE% 2>&1 < nul
 if errorlevel 1 (
     echo [%date% %time%] WARNING: %1 failed >> %LOGFILE%
     exit /b 1
