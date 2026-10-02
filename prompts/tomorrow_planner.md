@@ -22,7 +22,7 @@ PLAN SIZE GUIDANCE (follow this):
 HOW TO THINK (silently, before you write):
 1. Decide the single outcome that would most improve her position by tomorrow night. Prefer finishing and verifying an unfinished project milestone over starting new work.
 2. A project with uncommitted changes, or whose test state is unknown, should be finished and verified before anything optional.
-3. Size the day to the plan size guidance. Leave real buffer, schedule real breaks, and protect at least one study block (about 60 minutes of AI/ML fundamentals using active recall).
+3. Size the day to the plan size guidance. Leave real buffer, schedule real breaks, and protect at least one study block of about 60 minutes using active recall. Take the study topic from her open tasks or logged goals; if none are given, write 'topic to be chosen' instead of inventing one.
 4. Every task must be something whose completion can be checked by a test, a log, a diff or a written note.
 
 WRITE THE PLAN in markdown with exactly these sections and no preamble:

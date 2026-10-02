@@ -4,7 +4,7 @@ Read-only and best-effort: a missing repo or a failing git call just drops that 
 context. The planner is told to use ONLY this state, so it can plan around what is genuinely
 unfinished instead of generic templates.
 
-Configure with LIFE_AGENT_PROJECTS="Lifebot=D:/life-agent;Job Agent=D:/job-agent".
+Opt repos in with LIFE_AGENT_PROJECTS="Name=path;Other=path" (none are assumed by default).
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import os
 import subprocess
 from pathlib import Path
 
-DEFAULT_PROJECTS = "Lifebot=D:/life-agent;Job Agent=D:/job-agent"
+DEFAULT_PROJECTS = ""   # nothing assumed: set LIFE_AGENT_PROJECTS to opt repos in
 GIT_TIMEOUT = 8
 
 
