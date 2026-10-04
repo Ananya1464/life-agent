@@ -5,7 +5,7 @@
   const P = window.Pomodoro;
   const $ = (id) => document.getElementById(id);
 
-  const state = { tasks: [], markdown: '', reminders: [], settings: {}, pomodoro: null, history: [], busy: false };
+  const state = { tasks: [], markdown: '', reminders: [], settings: {}, pomodoro: null, history: [], busy: false, currentTaskId: null };
 
   function h(tag, props, ...children) {
     const el = document.createElement(tag);
@@ -130,7 +130,13 @@
         class: 'box', type: 'button', 'aria-label': t.checked ? 'Mark not done' : 'Mark done',
         onclick: () => { Sfx.play(t.checked ? 'click' : 'done'); api.tasks.toggle({ lineIndex: t.lineIndex, checked: !t.checked }); },
       }, t.checked ? '✓' : '');
-      const row = h('div', { class: `task${t.checked ? ' done' : ''}` }, box,
+      const isCurrent = state.currentTaskId === t.id;
+      const pick = h('button', {
+        class: `pick${isCurrent ? ' on' : ''}`, type: 'button', title: isCurrent ? 'Current task (click to clear)' : 'Make this the current task',
+        'aria-label': isCurrent ? 'Clear the current task' : 'Make this the current task', 'aria-pressed': String(isCurrent),
+        onclick: () => api.tasks.setCurrent(isCurrent ? null : t.id),
+      }, isCurrent ? '\u25C9' : '\u25CE');
+      const row = h('div', { class: `task${t.checked ? ' done' : ''}${isCurrent ? ' current' : ''}` }, box, pick,
         h('span', { class: 'task-text', text: t.text }),
         t.checked && t.doneTimestamp ? h('span', { class: 'task-ts', text: t.doneTimestamp.replace('T', ' ') }) : null,
         t.checked ? null : h('button', { class: 'start', type: 'button', text: '▶ Start', onclick: () => startTask(t) }));
@@ -140,10 +146,8 @@
     if (document.activeElement !== $('md-editor')) $('md-editor').value = state.markdown;
   }
 
-  async function startTask(t) {
-    Sfx.play('start');
-    await api.pomodoro.start({ id: t.id, text: t.text });
-    showTab('focus');
+  function startTask(t) {
+    openPicker(t);                                 // choose the length first
   }
 
   $('task-form').addEventListener('submit', async (e) => {
@@ -161,7 +165,6 @@
   $('md-save').addEventListener('click', async () => { await api.tasks.saveMarkdown($('md-editor').value); toast('Saved'); });
 
   // ---------------------------------------------------------------- focus
-  const CIRC = 2 * Math.PI * 94;
 
   function renderFocusSelect() {
     const sel = $('focus-select');
@@ -176,27 +179,33 @@
     const idle = v.phase === 'idle';
     const total = idle ? state.settings.focusMin * 60000 : v.durationMs;
     const remaining = idle ? total : v.remainingMs;
+    const stage = $('stage');
     $('focus-time').textContent = P.format(remaining);
-    $('focus-phase').textContent = idle ? 'Ready' : `${v.phase === 'focus' ? 'Focus' : 'Break'}${v.running ? '' : ' (paused)'}`;
-    $('ring-fill').style.strokeDashoffset = String(CIRC * (idle ? 0 : 1 - remaining / total));
-    $('ring-fill').style.strokeDasharray = String(CIRC);
-    document.querySelector('.ring').classList.toggle('break', v.phase === 'break');
-    $('focus-task').textContent = idle ? 'Pick a task to begin' : (v.task ? v.task.text : 'Free focus');
+    $('focus-phase').textContent = idle ? 'READY' : `${v.phase === 'focus' ? 'FOCUS' : 'BREAK'}${v.running ? '' : ' (PAUSED)'}`;
+    $('focus-task').textContent = idle ? 'PICK A TASK' : (v.task ? v.task.text.toUpperCase() : 'FREE FOCUS');
+    const pit = $('pit');
+    pit.classList.toggle('running', !idle && v.phase === 'focus');
+    pit.style.setProperty('--p', `${idle ? 0 : Math.round(100 * (1 - remaining / total))}%`);
+    stage.classList.toggle('celebrate', v.phase === 'break');          // focus just finished: happy, hungry avocado
     $('focus-start').hidden = !idle;
     $('focus-select').hidden = !idle;
     $('focus-pause').hidden = idle || !v.running;
     $('focus-resume').hidden = idle || v.running;
     $('focus-stop').hidden = idle;
+    $('focus-minus').hidden = idle || v.phase !== 'focus';
+    $('focus-plus').hidden = idle || v.phase !== 'focus';
     $('focus-badge').textContent = idle ? '' : P.format(remaining);
     $('focus-badge').classList.toggle('on', !idle);
     const s = v.stats || { completed: 0, seconds: 0 };
     $('focus-stats').textContent = s.completed ? `Today: ${s.completed} session${s.completed === 1 ? '' : 's'}, ${Math.round(s.seconds / 60)} min` : 'No sessions yet today';
   }
 
+  // the Focus tab shows exactly the same avocado as the floating timer
+  document.getElementById('stage').insertAdjacentHTML('afterbegin', window.AVOCADO_SVG);
+
   $('focus-start').addEventListener('click', () => {
     const id = $('focus-select').value;
-    const task = state.tasks.find((t) => t.id === id);
-    api.pomodoro.start(task ? { id: task.id, text: task.text } : { text: 'Free focus' });
+    openPicker(state.tasks.find((t) => t.id === id) || null);
   });
   $('focus-pause').addEventListener('click', () => api.pomodoro.pause());
   $('focus-resume').addEventListener('click', () => api.pomodoro.resume());
@@ -209,6 +218,58 @@
       if (state.pomodoro) renderPomodoro(state.pomodoro);
     });
   }
+
+  // ---------------------------------------------------------------- start picker: choose the length
+  let pickerTask = null;
+
+  function markPreset() {
+    const v = parseInt($('picker-minutes').value, 10);
+    document.querySelectorAll('#picker-presets .chip').forEach((c) => c.classList.toggle('on', parseInt(c.dataset.m, 10) === v));
+  }
+
+  function openPicker(task) {
+    pickerTask = task || { text: 'Free focus' };
+    $('picker-task').textContent = pickerTask.text;
+    const remembered = pickerTask.lastMinutes;
+    $('picker-minutes').value = remembered || state.settings.focusMin;
+    $('picker-hint').textContent = remembered ? `Last time: ${remembered} min` : 'Default length';
+    $('picker-error').hidden = true;
+    $('picker').hidden = false;
+    markPreset();
+    $('picker-minutes').focus();
+    $('picker-minutes').select();
+  }
+
+  function closePicker() { $('picker').hidden = true; pickerTask = null; }
+
+  async function confirmPicker() {
+    const m = parseInt($('picker-minutes').value, 10);
+    if (!Number.isFinite(m) || m < 1 || m > 180) {
+      $('picker-error').textContent = 'Enter a length from 1 to 180 minutes';
+      $('picker-error').hidden = false;
+      return;
+    }
+    const t = pickerTask;
+    closePicker();
+    Sfx.play('start');
+    await api.pomodoro.start({ id: t.id, text: t.text, minutes: m });
+    showTab('focus');
+  }
+
+  document.querySelectorAll('#picker-presets .chip').forEach((c) => c.addEventListener('click', () => {
+    $('picker-minutes').value = c.dataset.m;
+    markPreset();
+  }));
+  $('picker-minutes').addEventListener('input', markPreset);
+  $('picker-go').addEventListener('click', confirmPicker);
+  $('picker-cancel').addEventListener('click', closePicker);
+  $('picker').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmPicker(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePicker(); }
+  });
+  $('picker').addEventListener('click', (e) => { if (e.target === $('picker')) closePicker(); });
+  $('focus-minus').addEventListener('click', () => api.pomodoro.adjust(-5));
+  $('focus-plus').addEventListener('click', () => api.pomodoro.adjust(5));
 
   // ---------------------------------------------------------------- reminders
   function localInputValue(d) {
@@ -271,11 +332,15 @@
     const s = state.settings;
     $('set-notifications').checked = !!s.notifications;
     $('set-login').checked = !!s.openAtLogin;
+    $('set-avocado').checked = s.avocado !== false;
+    $('set-typewriter').checked = s.typewriter !== false;
     if (document.activeElement !== $('set-ntfy')) $('set-ntfy').value = s.ntfyTopic || '';
     $('cfg-focus').value = s.focusMin;
     $('cfg-break').value = s.breakMin;
   }
   $('set-notifications').addEventListener('change', async (e) => { state.settings = await api.settings.set({ notifications: e.target.checked }); });
+  $('set-typewriter').addEventListener('change', async (e) => { state.settings = await api.settings.set({ typewriter: e.target.checked }); });
+  $('set-avocado').addEventListener('change', async (e) => { state.settings = await api.settings.set({ avocado: e.target.checked }); });
   $('set-login').addEventListener('change', async (e) => { state.settings = await api.settings.set({ openAtLogin: e.target.checked }); });
   $('ntfy-save').addEventListener('click', async () => {
     state.settings = await api.settings.set({ ntfyTopic: $('set-ntfy').value });
@@ -328,7 +393,7 @@
 
   function setSound(on) {
     Sfx.setEnabled(on);
-    $('sound-toggle').textContent = on ? 'SFX ON' : 'SFX OFF';
+    $('sound-toggle').textContent = on ? 'SOUND ON' : 'SOUND OFF';
     $('sound-toggle').classList.toggle('off', !on);
   }
 
@@ -344,7 +409,7 @@
   // ---------------------------------------------------------------- boot
   async function boot() {
     const init = await api.init();
-    Object.assign(state, { tasks: init.tasks, markdown: init.markdown, reminders: init.reminders, settings: init.settings });
+    Object.assign(state, { tasks: init.tasks, markdown: init.markdown, reminders: init.reminders, settings: init.settings, currentTaskId: init.currentTaskId || null });
     $('today-label').textContent = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
     setBridge(init.bridge);
     for (const m of init.chat) addMessage(m.role === 'user' ? 'user' : 'bot', m.text);
@@ -356,7 +421,7 @@
     renderHud(init.game);
     api.game.stats().then(renderHud);
 
-    api.on.tasks((p) => { state.tasks = p.tasks; state.markdown = p.markdown; renderTasks(); });
+    api.on.tasks((p) => { state.tasks = p.tasks; state.markdown = p.markdown; state.currentTaskId = p.currentTaskId || null; renderTasks(); });
     api.on.reminders((list) => { state.reminders = list; renderReminders(); });
     api.on.reminderFired(showAlert);
     api.on.pomodoro(renderPomodoro);

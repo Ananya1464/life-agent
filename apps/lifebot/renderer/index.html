@@ -13,7 +13,7 @@
     <div class="hud-item"><span id="hud-gem"></span><div><div class="hud-big" id="hud-total">0</div><div class="hud-sub" id="hud-today">DIAMONDS</div></div></div>
     <div class="hud-level"><div class="hud-lv" id="hud-lv">LV 1</div><div class="xp" id="hud-xp"></div><div class="hud-sub" id="hud-xptext"></div></div>
     <div class="hud-item"><span id="hud-flame"></span><div><div class="hud-big" id="hud-streak">0</div><div class="hud-sub">STREAK</div></div></div>
-    <button class="sound" id="sound-toggle" type="button" aria-label="Toggle sound">SFX ON</button>
+    <button class="sound" id="sound-toggle" type="button" title="Sound effects: the little beeps and chimes when you finish things" aria-label="Toggle sound effects">SOUND ON</button>
   </div>
 
   <div class="app">
@@ -70,20 +70,21 @@
       <section class="view" id="view-focus">
         <header class="view-head"><h1>Focus</h1><span class="muted" id="focus-stats"></span></header>
         <div class="focus-wrap">
-          <div class="ring">
-            <svg viewBox="0 0 220 220" width="260" height="260" aria-hidden="true">
-              <circle cx="110" cy="110" r="94" class="ring-track"></circle>
-              <circle cx="110" cy="110" r="94" class="ring-fill" id="ring-fill" transform="rotate(-90 110 110)"></circle>
-            </svg>
-            <div class="ring-center"><div class="ring-time" id="focus-time">25:00</div><div class="ring-phase" id="focus-phase">Ready</div></div>
+          <div class="stage" id="stage" role="img" aria-label="Avocado timer">
+            <div class="pit" id="pit">
+              <div class="pit-task" id="focus-task">PICK A TASK</div>
+              <div class="pit-time" id="focus-time">25:00</div>
+              <div class="pit-phase" id="focus-phase">READY</div>
+            </div>
           </div>
-          <div class="focus-task" id="focus-task">Pick a task to begin</div>
           <div class="focus-controls">
             <select id="focus-select" aria-label="Task to focus on"></select>
             <button class="primary" id="focus-start">Start</button>
             <button class="ghost" id="focus-pause" hidden>Pause</button>
             <button class="ghost" id="focus-resume" hidden>Resume</button>
             <button class="danger" id="focus-stop" hidden>Stop</button>
+            <button class="ghost small" id="focus-minus" hidden aria-label="Remove 5 minutes">-5 min</button>
+            <button class="ghost small" id="focus-plus" hidden aria-label="Add 5 minutes">+5 min</button>
           </div>
           <div class="focus-config muted">
             <label>Focus <input type="number" id="cfg-focus" min="1" max="120"> min</label>
@@ -115,6 +116,8 @@
         <div class="card settings">
           <h2>Notifications and startup</h2>
           <label class="check"><input type="checkbox" id="set-notifications"> Windows desktop notifications</label>
+          <label class="check"><input type="checkbox" id="set-typewriter"> Show the floating typewriter card (current task, always on top)</label>
+          <label class="check"><input type="checkbox" id="set-avocado"> Show the floating avocado timer (always on top)</label>
           <label class="check"><input type="checkbox" id="set-login"> Start Lifebot with Windows (lives in the system tray)</label>
           <div class="row wrap">
             <label class="grow">Phone push (ntfy.sh topic)
@@ -129,11 +132,33 @@
     </main>
   </div>
 
+  <div class="modal" id="picker" role="dialog" aria-modal="true" aria-labelledby="picker-title" hidden>
+    <div class="modal-card">
+      <div class="modal-title" id="picker-title">How long should this focus session be?</div>
+      <div class="modal-task" id="picker-task"></div>
+      <div class="row wrap" id="picker-presets">
+        <button class="chip" type="button" data-m="15">15 min</button>
+        <button class="chip" type="button" data-m="25">25 min</button>
+        <button class="chip" type="button" data-m="45">45 min</button>
+        <button class="chip" type="button" data-m="60">60 min</button>
+      </div>
+      <div class="row">
+        <label class="muted">Minutes <input type="number" id="picker-minutes" min="1" max="180"></label>
+        <span class="muted" id="picker-hint"></span>
+      </div>
+      <div class="error" id="picker-error" hidden></div>
+      <div class="row">
+        <button class="primary" id="picker-go" type="button">&#9654; Start</button>
+        <button class="ghost" id="picker-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
   <div class="toasts" id="toasts"></div>
   <div class="alerts" id="alerts"></div>
 
   <script src="../lib/reminders.js"></script>
   <script src="../lib/pomodoro.js"></script>
+  <script src="avocado-art.js"></script>
   <script src="pixel.js"></script>
   <script src="sfx.js"></script>
   <script src="app.js"></script>

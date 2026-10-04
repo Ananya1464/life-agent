@@ -67,6 +67,16 @@
     return { state: idle(), events: [{ type: 'break_done', task: s.task, runId: s.runId }] };
   }
 
+  const MAX_TOTAL_MS = 180 * 60000;   // a session can never be stretched past 3 hours
+  const MIN_LEFT_MS = 60000;          // shortening always leaves at least a minute
+
+  /** Change the length of the running focus session by deltaMs (works while paused too). */
+  function adjust(s, deltaMs, now) {
+    if (s.phase !== 'focus') return { state: s, events: [] };
+    const next = Math.min(MAX_TOTAL_MS, Math.max(elapsed(s, now) + MIN_LEFT_MS, s.durationMs + deltaMs));
+    return { state: { ...s, durationMs: next }, events: [] };
+  }
+
   /** Snapshot for the UI. */
   function view(s, now) {
     return {
@@ -80,5 +90,5 @@
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
   }
 
-  return { DEFAULTS, idle, start, pause, resume, stop, tick, view, remainingMs, format };
+  return { DEFAULTS, idle, start, pause, resume, stop, tick, adjust, view, remainingMs, format, MAX_TOTAL_MS };
 }));

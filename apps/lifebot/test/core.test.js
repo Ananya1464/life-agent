@@ -220,3 +220,37 @@ test('pickPython prefers the interpreter with the most modules and requires the 
   assert.deepEqual((await env.pickPython(['a'], probe)).missing, ['openai']);
   assert.equal(await env.pickPython(['c', 'd'], probe), null);
 });
+
+
+// ------------------------------------------------------------------ adjust the running timer
+test('adjust adds or removes minutes from the running session', () => {
+  const { state } = P.start(P.idle(), TASK, t0);
+  const more = P.adjust(state, 5 * 60000, t0 + 60000);
+  assert.equal(P.remainingMs(more.state, t0 + 60000), 29 * 60000);          // 25 + 5 - 1 elapsed
+  const less = P.adjust(more.state, -10 * 60000, t0 + 60000);
+  assert.equal(P.remainingMs(less.state, t0 + 60000), 19 * 60000);
+  assert.deepEqual(more.events, []);
+});
+
+test('adjust never leaves less than a minute, never exceeds three hours, and ignores non-focus phases', () => {
+  const { state } = P.start(P.idle(), TASK, t0);
+  const floor = P.adjust(state, -999 * 60000, t0 + 20 * 60000);
+  assert.equal(P.remainingMs(floor.state, t0 + 20 * 60000), 60000);
+  const cap = P.adjust(state, 999 * 60000, t0);
+  assert.equal(cap.state.durationMs, P.MAX_TOTAL_MS);
+  assert.equal(P.adjust(P.idle(), 5 * 60000, t0).state.phase, 'idle');
+  const brk = P.tick(state, t0 + 25 * 60000).state;
+  assert.equal(P.adjust(brk, 5 * 60000, t0 + 25 * 60000).state.durationMs, brk.durationMs);
+});
+
+test('adjust while paused keeps the elapsed time and the longer session completes later', () => {
+  let { state } = P.start(P.idle(), TASK, t0);
+  state = P.pause(state, t0 + 10 * 60000).state;
+  state = P.adjust(state, 5 * 60000, t0 + 99 * 60000).state;               // adjusting does not consume paused time
+  assert.equal(P.remainingMs(state, t0 + 99 * 60000), 20 * 60000);
+  state = P.resume(state, t0 + 20 * 60000).state;
+  assert.deepEqual(P.tick(state, t0 + 39 * 60000).events, []);
+  const done = P.tick(state, t0 + 40 * 60000);
+  assert.equal(done.events[0].type, 'completed');
+  assert.equal(done.events[0].durationSec, 30 * 60);                       // reports the adjusted length
+});

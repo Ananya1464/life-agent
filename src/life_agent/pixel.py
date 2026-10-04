@@ -46,7 +46,7 @@ CHEST = [
 SPRITES = {"gem": GEM, "flame": FLAME, "chest": CHEST}
 
 PALETTES = {
-    "gem": {"o": "#0a2a5e", "l": "#d9fdff", "m": "#38e8ff", "d": "#1597c9", "w": "#ffffff"},
+    "gem": {"o": "#14451f", "l": "#e8ffd0", "m": "#72bd27", "d": "#397d22", "w": "#ffffff"},
     "flame": {"o": "#5a1200", "y": "#ffd23f", "r": "#ff7a1a", "w": "#fff6c2"},
     "chest": {"o": "#3a1f0a", "b": "#ffbf3f", "d": "#c27d12", "g": "#fff3b0"},
 }

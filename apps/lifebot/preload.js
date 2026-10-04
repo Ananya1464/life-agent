@@ -9,9 +9,9 @@ const on = (channel) => (handler) => {
 
 contextBridge.exposeInMainWorld('lifebot', {
   init: invoke('app:init'),
-  tasks: { add: invoke('tasks:add'), toggle: invoke('tasks:toggle'), saveMarkdown: invoke('tasks:saveMarkdown') },
+  tasks: { add: invoke('tasks:add'), toggle: invoke('tasks:toggle'), saveMarkdown: invoke('tasks:saveMarkdown'), setCurrent: invoke('tasks:setCurrent') },
   pomodoro: {
-    start: invoke('pomodoro:start'), pause: invoke('pomodoro:pause'),
+    start: invoke('pomodoro:start'), pause: invoke('pomodoro:pause'), adjust: invoke('pomodoro:adjust'),
     resume: invoke('pomodoro:resume'), stop: invoke('pomodoro:stop'),
   },
   reminders: {

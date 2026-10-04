@@ -1,15 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
-  <title>Avocado Timer</title>
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <div class="window-container">
-    <!-- Centered Kawaii Pixel-Art Avocado (~224x266 within 266x322) -->
-    <svg class="avocado-svg" viewBox="0 0 266 322" width="266" height="322" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+/* The original pixel avocado, shared with the floating timer (generated from apps/pomodoro/renderer/index.html). */
+window.AVOCADO_SVG = `<svg class="avocado-svg" viewBox="0 0 266 322" width="266" height="322" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
       <defs>
         <!-- Pixel Shadow Pattern -->
         <filter id="pixel-shadow">
@@ -188,69 +178,4 @@
 
       <!-- Pit Rim Navy Ring (108x108 px circle outline at center 133, 206) -->
       <circle cx="133" cy="206" r="54" fill="none" stroke="#0c123d" stroke-width="4" />
-    </svg>
-
-    <!-- Lifebot-managed controls: minimize, hide, open the app (hidden when running standalone) -->
-    <div class="widget-controls interactive-area" id="widget-controls">
-      <button class="wc-btn" id="wc-home" title="Open Lifebot" aria-label="Open Lifebot">&#8962;</button>
-      <button class="wc-btn" id="wc-min" title="Minimize to a small icon" aria-label="Minimize to a small icon">&#8211;</button>
-      <button class="wc-btn" id="wc-hide" title="Hide to the tray" aria-label="Hide to the tray">&#215;</button>
-    </div>
-    <div class="mini-ui" id="mini-ui">
-      <button class="wc-btn expand" id="wc-expand" title="Expand" aria-label="Expand the timer">&#9633;</button>
-      <span class="mini-time" id="mini-time">READY</span>
-    </div>
-
-    <!-- Confetti layer (celebration only) -->
-    <canvas id="confetti-canvas" class="confetti-canvas" width="266" height="322"></canvas>
-
-    <!-- 104x104 Circular Pit Interface (Centered at x=133, y=206 -> top=154, left=81) -->
-    <div class="pit-container interactive-area" id="pit-container">
-      <!-- Tan Wedge Canvas for wall-clock elapsed progress -->
-      <canvas class="wedge-canvas" id="wedge-canvas" width="104" height="104"></canvas>
-
-      <!-- Pit Content UI States -->
-      <div class="pit-content" id="pit-content">
-        
-        <!-- 1. SETUP STATE -->
-        <div class="setup-view" id="setup-view">
-          <div class="minutes-row">
-            <input type="number" id="input-minutes" class="minutes-input" min="1" max="180" value="25" autofocus>
-            <span class="minutes-label">MIN</span>
-          </div>
-          <input type="text" id="input-task" class="task-input" maxlength="24" placeholder="(task)" spellcheck="false">
-          <button class="start-btn" id="btn-start">▶ START</button>
-        </div>
-
-        <!-- 2. TIMER STATE -->
-        <div class="timer-view" id="timer-view" style="display: none;">
-          <span class="timer-task" id="timer-task-display">FOCUS</span>
-          <div class="timer-digits" id="timer-countdown">25:00</div>
-          <div class="adj-row">
-            <button class="adj-btn" id="btn-minus" aria-label="Remove 5 minutes">&#8722;5</button>
-            <button class="adj-btn" id="btn-plus" aria-label="Add 5 minutes">+5</button>
-          </div>
-          <span class="abandon-hint" id="btn-abandon" title="Abandon session (Ctrl+C)">^C abandon</span>
-        </div>
-
-        <!-- 3. ALARM STATE -->
-        <div class="alarm-view" id="alarm-view" style="display: none;">
-          <div class="alarm-title">TIME UP!</div>
-          <div class="alarm-actions">
-            <button class="act-btn" id="btn-done" aria-label="Mark the task done">&#10003; DONE</button>
-            <button class="act-btn" id="btn-next" aria-label="Start the next task">&#9654; NEXT</button>
-          </div>
-          <button class="stop-btn" id="btn-stop-alarm" aria-label="Stop the alarm">&#9632; STOP</button>
-        </div>
-
-
-      </div>
-    </div>
-  </div>
-
-  <script src="logic.js"></script>
-  <script src="alarm.js"></script>
-  <script src="confetti.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+    </svg>`;

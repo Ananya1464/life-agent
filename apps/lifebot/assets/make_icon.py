@@ -8,7 +8,7 @@ S = 1024  # draw large, then downsample for smooth edges
 
 
 def gradient(size: int) -> Image.Image:
-    top, bottom = (140, 124, 240), (74, 58, 168)
+    top, bottom = (169, 226, 61), (57, 125, 34)
     img = Image.new("RGB", (size, size))
     px = img.load()
     for y in range(size):
@@ -32,7 +32,7 @@ def build() -> Image.Image:
     d.rounded_rectangle((200, 230, 824, 700), radius=150, fill=white)
     d.polygon([(330, 680), (330, 840), (520, 690)], fill=white)
     # checkmark inside the bubble
-    check = (92, 76, 190, 255)
+    check = (193, 68, 60, 255)
     d.line([(335, 470), (450, 585), (700, 340)], fill=check, width=70, joint="curve")
     for x, y in ((335, 470), (450, 585), (700, 340)):
         d.ellipse((x - 35, y - 35, x + 35, y + 35), fill=check)

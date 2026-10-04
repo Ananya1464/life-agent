@@ -5,7 +5,7 @@
  * while the window is closed to the tray. The renderer is just a view; the Python agent is reached
  * through lib/pybridge.js.
  */
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage, shell, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -15,15 +15,19 @@ const R = require('./lib/reminders.js');
 const P = require('./lib/pomodoro.js');
 const T = require('./lib/tasks.js');
 const ntfy = require('./lib/ntfy.js');
+const widgetpos = require('./lib/widgetpos.js');
+const taskedit = require('./lib/taskedit.js');
 const { createStore } = require('./lib/store.js');
 
 const APP_ID = 'com.ananya.lifebot';
 const HIDDEN_START = process.argv.includes('--hidden');
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
-const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, focusMin: 25, breakMin: 5 };
+const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, avocado: true, typewriter: true, focusMin: 25, breakMin: 5 };
 const OUTBOX_MAX = 500;
 
 let win = null;
+let avocado = null;
+let typewriter = null;
 let tray = null;
 let bridge = null;
 let store = null;
@@ -63,7 +67,7 @@ function localStamp() {
 }
 
 const settings = () => ({ ...DEFAULT_SETTINGS, ...store.get().settings });
-const tasksFile = () => process.env.LIFEBOT_TASKS_FILE || path.join(app.getPath('documents'), 'Typewriter', 'tasks.md');
+const tasksFile = () => process.env.LIFEBOT_TASKS_FILE || store.get().tasksFile || path.join(app.getPath('documents'), 'Typewriter', 'tasks.md');
 
 function readTasksMarkdown() {
   try {
@@ -192,6 +196,7 @@ function applyPomo(result) {
   pomo = result.state;
   for (const e of result.events) handlePomoEvent(e);
   broadcastPomo();
+  sendTypewriter();
 }
 
 function handlePomoEvent(e) {
@@ -202,6 +207,7 @@ function handlePomoEvent(e) {
   } else if (e.type === 'completed') {
     enqueue('record_focus', { ...base, phase: 'completed', duration_seconds: e.durationSec });
     bumpStats(e.durationSec);
+    celebrateAvocado();
     notify('Focus session complete', `${taskText} - take a ${settings().breakMin}-minute break.`, 'focus');
     send('toast', { text: `Focus complete: ${taskText}` });
     pushPhone('Focus session complete', taskText);
@@ -230,15 +236,239 @@ function pomoView() {
 function broadcastPomo() {
   const v = pomoView();
   send('pomodoro:state', v);
+  sendAvocado('avocado:state', avocadoState());
   if (tray) {
     tray.setToolTip(v.phase === 'idle' ? 'Lifebot'
       : `Lifebot - ${v.phase === 'focus' ? 'Focus' : 'Break'} ${P.format(v.remainingMs)}${v.task ? ' - ' + v.task.text : ''}`);
   }
 }
 
-function startFocus(task) {
+/** Minutes from untrusted input: a whole number 1..180, or null. */
+function validMinutes(v) {
+  return Number.isFinite(v) ? Math.min(Math.max(Math.round(v), 1), 180) : null;
+}
+
+/** Each task remembers the last length it was run with (keyed by its text, so it survives new days). */
+const rememberedMinutes = (text) => ((store.get().taskMinutes || {})[T.slug(text || '')]) || null;
+function rememberMinutes(text, minutes) {
+  if (!text || !minutes) return;
+  store.update((d) => { d.taskMinutes = { ...(d.taskMinutes || {}), [T.slug(text)]: minutes }; });
+  broadcastTasks(tasksPayload());                               // so the next picker suggests it
+}
+
+function startFocus(task, minutes) {
   const known = task && task.id ? currentTasks().find((t) => t.id === task.id) : null;
-  applyPomo(P.start(pomo, known ? { id: known.id, text: known.text } : { id: 'free', text: (task && task.text) || 'Free focus' }, Date.now(), pomoCfg()));
+  const text = known ? known.text : (task && task.text) || 'Free focus';
+  if (known && store.get().currentTaskId !== known.id) {       // the card follows the task you are working on
+    store.update((d) => { d.currentTaskId = known.id; });
+    broadcastTasks(tasksPayload());
+  }
+  const explicit = validMinutes(minutes);
+  const length = explicit || rememberedMinutes(text);          // no explicit choice: reuse what this task used last
+  if (explicit) rememberMinutes(text, explicit);
+  const cfg = { ...pomoCfg(), ...(length ? { focusMin: length } : {}) };
+  applyPomo(P.start(pomo, known ? { id: known.id, text: known.text } : { id: 'free', text }, Date.now(), cfg));
+  floatWidgets();
+}
+
+/** Like the standalone Pomodoro: when a session starts, the timer (and the task card) float over your other work. */
+function floatWidgets() {
+  if (settings().avocado === false) { store.update((d) => { d.settings = { ...d.settings, avocado: true }; }); send('settings:changed', settings()); }
+  createAvocado();
+  if (isCollapsed('avocado')) setCollapsed('avocado', false);
+  if (!avocado.isVisible()) avocado.showInactive();
+  if (settings().typewriter === false) { store.update((d) => { d.settings = { ...d.settings, typewriter: true }; }); send('settings:changed', settings()); }
+  createTypewriter();
+  if (isCollapsed('typewriter')) setCollapsed('typewriter', false);
+  if (!typewriter.isVisible()) typewriter.showInactive();
+}
+
+/** +/- minutes on the running session; the new total becomes that task's remembered length. */
+function adjustTimer(deltaMin) {
+  if (![-5, 5].includes(deltaMin)) return;
+  applyPomo(P.adjust(pomo, deltaMin * 60000, Date.now()));
+  if (pomo.phase === 'focus' && pomo.task && pomo.task.id !== 'free') rememberMinutes(pomo.task.text, Math.round(pomo.durationMs / 60000));
+}
+
+// ------------------------------------------------------------------ floating avocado timer
+function avocadoState() {
+  const v = pomoView();
+  return {
+    phase: v.phase, running: v.running, task: v.task, runId: v.runId, durationMs: v.durationMs,
+    remainingMs: v.remainingMs, endsAt: v.running ? Date.now() + v.remainingMs : null, collapsed: isCollapsed('avocado'),
+  };
+}
+
+const sendAvocado = (channel, payload) => {
+  if (avocado && !avocado.isDestroyed()) avocado.webContents.send(channel, payload);
+};
+
+let savePosTimer = null;
+function saveAvocadoPosition() {
+  clearTimeout(savePosTimer);
+  savePosTimer = setTimeout(() => {
+    if (!avocado || avocado.isDestroyed()) return;
+    const { x, y } = avocado.getBounds();
+    store.update((d) => { d.avocadoPos = { x, y }; });
+  }, 400);
+}
+
+function createAvocado() {
+  if (avocado && !avocado.isDestroyed()) return avocado;
+  const displays = screen.getAllDisplays();
+  const pos = widgetpos.resolvePosition(store.get().avocadoPos, displays, screen.getPrimaryDisplay(), sizeFor('avocado'));
+  avocado = new BrowserWindow({
+    ...sizeFor('avocado'), x: pos.x, y: pos.y, show: false, frame: false, transparent: true,
+    backgroundColor: '#00000000', resizable: false, useContentSize: true, skipTaskbar: true, title: 'Avocado Timer',
+    webPreferences: {
+      preload: path.join(__dirname, 'avocado-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true,
+      autoplayPolicy: 'no-user-gesture-required',   // the alarm must sound without a click
+      backgroundThrottling: false,                   // exact timing and audio while covered or unfocused
+    },
+  });
+  avocado.setAlwaysOnTop(true, 'floating');          // above ordinary windows, below system UI
+  avocado.loadFile(path.join(__dirname, '..', 'pomodoro', 'renderer', 'index.html'));
+  avocado.once('ready-to-show', () => { if (settings().avocado !== false) avocado.showInactive(); });   // never steals focus
+  avocado.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  avocado.webContents.on('will-navigate', (e) => e.preventDefault());
+  avocado.on('move', saveAvocadoPosition);          // debounced; also fires for programmatic moves
+  avocado.on('closed', () => { avocado = null; });
+  return avocado;
+}
+
+function setAvocadoVisible(visible) {
+  if (visible) { createAvocado(); if (!avocado.isVisible() && !avocado.webContents.isLoading()) avocado.showInactive(); }
+  else if (avocado && !avocado.isDestroyed()) avocado.hide();
+}
+
+/** Mark a task done (file + event); used by the avocado's DONE button. */
+function completeTask(id) {
+  const t = currentTasks().find((x) => x.id === id && !x.checked);
+  if (!t) return false;
+  writeTasksMarkdown(T.toggle(readTasksMarkdown(), t.lineIndex, true, localStamp()));
+  enqueue('record_task', { status: 'completed', task: t.text, task_id: t.id });
+  broadcastTasks(tasksPayload());
+  return true;
+}
+
+// ------------------------------------------------------------------ floating typewriter card (current task)
+const TW_SIZE = { width: 290, height: 236 };
+const SIZES = {
+  avocado: { full: { width: 266, height: 322 }, mini: { width: 96, height: 132 } },
+  typewriter: { full: TW_SIZE, mini: { width: 230, height: 50 } },
+};
+const isCollapsed = (name) => !!((store.get().collapsed || {})[name]);
+const sizeFor = (name) => SIZES[name][isCollapsed(name) ? 'mini' : 'full'];
+const widgetWindow = (name) => (name === 'avocado' ? avocado : typewriter);
+
+/** Minimize to / restore from a small icon, keeping the bottom-right corner where it was. */
+function setCollapsed(name, collapsed) {
+  store.update((d) => { d.collapsed = { ...(d.collapsed || {}), [name]: collapsed }; });
+  const win = widgetWindow(name);
+  if (!win || win.isDestroyed()) return;
+  const b = win.getBounds();
+  const size = sizeFor(name);
+  let x = b.x + b.width - size.width;
+  let y = b.y + b.height - size.height;
+  if (!widgetpos.isVisible({ x, y, ...size }, screen.getAllDisplays())) {
+    ({ x, y } = widgetpos.defaultPosition(screen.getPrimaryDisplay(), size));
+  }
+  win.setBounds({ x, y, width: size.width, height: size.height });
+  win.webContents.send('widget:mode', { collapsed });
+}
+
+function setWidgetVisible(name, visible) {
+  if (name === 'avocado') setAvocadoVisible(visible); else setTypewriterVisible(visible);
+}
+
+/** What the card shows: the task the user explicitly picked, or "none" (never silently another task). */
+function twState() {
+  const id = store.get().currentTaskId;
+  const t = id ? currentTasks().find((x) => x.id === id) : null;
+  const v = pomoView();
+  const timer = { phase: v.phase, running: v.running, taskId: v.task ? v.task.id : null, remainingMs: v.remainingMs,
+    endsAt: v.running ? Date.now() + v.remainingMs : null };
+  const collapsed = isCollapsed('typewriter');
+  const minutes = t ? (rememberedMinutes(t.text) || settings().focusMin) : settings().focusMin;
+  return t ? { state: 'ok', id: t.id, text: t.text, checked: t.checked, timer, collapsed, minutes, remembered: !!(t && rememberedMinutes(t.text)) }
+    : { state: 'none', timer, collapsed, minutes };
+}
+
+const sendTypewriter = () => {
+  if (typewriter && !typewriter.isDestroyed()) typewriter.webContents.send('tw:state', twState());
+};
+
+function broadcastTasks(payload) {
+  send('tasks:changed', payload);
+  sendTypewriter();
+}
+
+let twPosTimer = null;
+function saveTypewriterPosition() {
+  clearTimeout(twPosTimer);
+  twPosTimer = setTimeout(() => {
+    if (!typewriter || typewriter.isDestroyed()) return;
+    const { x, y } = typewriter.getBounds();
+    store.update((d) => { d.typewriterPos = { x, y }; });
+  }, 400);
+}
+
+function createTypewriter() {
+  if (typewriter && !typewriter.isDestroyed()) return typewriter;
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  // Default: just left of the avocado's default spot, bottom-aligned, so the two never overlap
+  const av = widgetpos.defaultPosition(primary, { width: 266, height: 322 });
+  const fallback = { x: av.x - TW_SIZE.width - 16, y: av.y + 322 - TW_SIZE.height };
+  const saved = store.get().typewriterPos;
+  const pos = saved && widgetpos.isVisible({ ...saved, ...sizeFor('typewriter') }, displays) ? { x: Math.round(saved.x), y: Math.round(saved.y) } : fallback;
+  typewriter = new BrowserWindow({
+    ...sizeFor('typewriter'), x: pos.x, y: pos.y, show: false, frame: false, transparent: true, backgroundColor: '#00000000',
+    resizable: false, useContentSize: true, skipTaskbar: true, title: 'Typewriter',
+    webPreferences: {
+      preload: path.join(__dirname, 'typewriter-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true,
+      backgroundThrottling: false,
+    },
+  });
+  typewriter.setAlwaysOnTop(true, 'floating');
+  typewriter.loadFile(path.join(__dirname, 'renderer', 'typewriter.html'));
+  typewriter.once('ready-to-show', () => { if (settings().typewriter !== false) typewriter.showInactive(); });   // never steals focus
+  typewriter.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  typewriter.webContents.on('will-navigate', (e) => e.preventDefault());
+  typewriter.on('move', saveTypewriterPosition);
+  typewriter.on('closed', () => { typewriter = null; });
+  return typewriter;
+}
+
+function setTypewriterVisible(visible) {
+  if (visible) { createTypewriter(); if (!typewriter.isVisible() && !typewriter.webContents.isLoading()) typewriter.showInactive(); }
+  else if (typewriter && !typewriter.isDestroyed()) typewriter.hide();
+}
+
+/** Pick up edits made outside the app (event-based; debounced), so the card never shows stale text. */
+let tasksWatcher = null;
+function watchTasksFile() {
+  try {
+    fs.mkdirSync(path.dirname(tasksFile()), { recursive: true });
+    let timer = null;
+    tasksWatcher = fs.watch(path.dirname(tasksFile()), { persistent: false }, (_event, name) => {
+      if (name && name !== path.basename(tasksFile())) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => broadcastTasks(tasksPayload()), 250);
+    });
+    tasksWatcher.on('error', () => { /* watching is best-effort */ });
+  } catch (err) {
+    console.error('tasks watcher unavailable:', err.message);
+  }
+}
+
+/** Time is up: make sure the avocado is on screen, then celebrate (the timer state stays with Lifebot). */
+function celebrateAvocado() {
+  if (settings().avocado === false) return;
+  createAvocado();
+  if (isCollapsed('avocado')) setCollapsed('avocado', false);          // the buttons must be reachable
+  if (!avocado.isVisible()) avocado.showInactive();
+  sendAvocado('avocado:celebrate', {});
 }
 
 setInterval(() => {
@@ -299,14 +529,14 @@ function recordPlanned() {
 }
 
 function tasksPayload() {
-  const tasks = currentTasks();
-  return { tasks, markdown: readTasksMarkdown(), done: tasks.filter((t) => t.checked).length };
+  const tasks = currentTasks().map((t) => ({ ...t, lastMinutes: rememberedMinutes(t.text) }));
+  return { tasks, markdown: readTasksMarkdown(), done: tasks.filter((t) => t.checked).length, currentTaskId: store.get().currentTaskId || null };
 }
 
 function addTask(text) {
   writeTasksMarkdown(T.addTask(readTasksMarkdown(), text));
   recordPlanned();
-  send('tasks:changed', tasksPayload());
+  broadcastTasks(tasksPayload());
 }
 
 // ------------------------------------------------------------------ chat
@@ -363,18 +593,125 @@ function registerIpc() {
     writeTasksMarkdown(T.toggle(readTasksMarkdown(), lineIndex, !!checked, localStamp()));
     if (before && checked) enqueue('record_task', { status: 'completed', task: before.text, task_id: before.id });
     const payload = tasksPayload();
-    send('tasks:changed', payload);
+    broadcastTasks(payload);
     return payload;
   });
   ipcMain.handle('tasks:saveMarkdown', (_e, markdown) => {
     writeTasksMarkdown(String(markdown));
     recordPlanned();
     const payload = tasksPayload();
-    send('tasks:changed', payload);
+    broadcastTasks(payload);
     return payload;
   });
 
-  ipcMain.handle('pomodoro:start', (_e, task) => { startFocus(task); return pomoView(); });
+  ipcMain.handle('pomodoro:start', (_e, task) => {
+    startFocus(task, validMinutes(task && task.minutes));
+    if (win && !win.isDestroyed() && win.isVisible()) win.minimize();      // get out of the way: keep working, the avocado floats on top
+    return pomoView();
+  });
+  ipcMain.handle('pomodoro:adjust', (_e, deltaMin) => { adjustTimer(deltaMin); return pomoView(); });
+
+  // --- typewriter card: narrow, validated operations only
+  ipcMain.handle('tw:get', () => twState());
+  ipcMain.handle('tw:update', (_e, input) => {
+    const currentId = store.get().currentTaskId;
+    if (!input || typeof input.id !== 'string' || input.id !== currentId) {
+      return { ok: false, code: 'invalid', error: 'That is no longer the current task' };
+    }
+    const result = taskedit.applyEdit({ markdown: readTasksMarkdown(), dateIso: todayIso(), id: input.id, oldText: input.oldText, newText: input.newText });
+    if (!result.ok) return result;
+    if (result.markdown !== readTasksMarkdown()) {
+      try { writeTasksMarkdown(result.markdown); }
+      catch (err) { return { ok: false, code: 'write_failed', error: `Could not save: ${err.message}` }; }
+    }
+    store.update((d) => { d.currentTaskId = result.id; });
+    recordPlanned();
+    broadcastTasks(tasksPayload());
+    return { ok: true, id: result.id, text: result.text };
+  });
+  ipcMain.handle('tasks:setCurrent', (_e, id) => {
+    if (id !== null && typeof id !== 'string') return tasksPayload();
+    if (id !== null && !currentTasks().some((t) => t.id === id)) return tasksPayload();
+    store.update((d) => { d.currentTaskId = id; });
+    broadcastTasks(tasksPayload());
+    return tasksPayload();
+  });
+
+  // --- floating avocado timer: narrow, validated operations only
+  ipcMain.handle('avocado:getState', () => avocadoState());
+
+  // --- shared widget controls (strictly validated)
+  const WIDGETS = ['avocado', 'typewriter'];
+  ipcMain.handle('widget:collapse', (_e, input) => {
+    if (!input || !WIDGETS.includes(input.widget) || typeof input.collapsed !== 'boolean') return false;
+    setCollapsed(input.widget, input.collapsed);
+    return true;
+  });
+  ipcMain.handle('widget:hide', (_e, input) => {
+    if (!input || !WIDGETS.includes(input.widget)) return false;
+    store.update((d) => { d.settings = { ...d.settings, [input.widget]: false }; });
+    setWidgetVisible(input.widget, false);
+    send('settings:changed', settings());
+    return true;
+  });
+  ipcMain.handle('widget:openApp', (_e, input) => {
+    showWindow();
+    const tab = input && ['tasks', 'focus'].includes(input.tab) ? input.tab : null;
+    if (tab) send('navigate', tab);
+    return true;
+  });
+
+  // --- typewriter card: start / stop the timer for the current task
+  ipcMain.handle('tw:start', (_e, input) => {
+    const id = store.get().currentTaskId;
+    const t = id ? currentTasks().find((x) => x.id === id) : null;
+    if (!t) return { ok: false, error: 'No current task' };
+    if (t.checked) return { ok: false, error: 'That task is already done' };
+    if (pomo.phase === 'focus') return { ok: false, error: 'A timer is already running' };
+    startFocus({ id: t.id, text: t.text }, validMinutes(input && input.minutes));
+    if (settings().avocado === false) {                   // started from the card: show the timer
+      store.update((d) => { d.settings = { ...d.settings, avocado: true }; });
+      setAvocadoVisible(true);
+      send('settings:changed', settings());
+    }
+    return { ok: true };
+  });
+  ipcMain.handle('tw:stop', () => {
+    if (pomo.phase === 'focus' && pomo.task && pomo.task.id === store.get().currentTaskId) applyPomo(P.stop(pomo, Date.now()));
+    return { ok: true };
+  });
+  ipcMain.handle('avocado:start', (_e, input) => {
+    const minutes = input && Number.isFinite(input.minutes) ? Math.min(Math.max(Math.round(input.minutes), 1), 180) : null;
+    const text = input && typeof input.task === 'string' ? input.task.trim().slice(0, 24) : '';
+    const known = text ? currentTasks().find((t) => !t.checked && t.text.toLowerCase() === text.toLowerCase()) : null;
+    startFocus(known ? { id: known.id, text: known.text } : { text: text || 'Free focus' }, minutes);
+    return avocadoState();
+  });
+  ipcMain.handle('avocado:adjust', (_e, deltaMin) => { adjustTimer(deltaMin); return avocadoState(); });
+  ipcMain.handle('avocado:abandon', () => { if (pomo.phase === 'focus') applyPomo(P.stop(pomo, Date.now())); return avocadoState(); });
+  // After the celebration: just stop, mark the finished task done, or move on to the next open task
+  ipcMain.handle('avocado:ack', (_e, action) => {
+    const act = ['stop', 'done', 'next'].includes(action) ? action : 'stop';
+    const finished = pomo.phase === 'break' ? pomo.task : null;
+    if (pomo.phase === 'break') applyPomo(P.stop(pomo, Date.now()));
+    const realTask = finished && finished.id && finished.id !== 'free' ? finished.id : null;
+    if (act === 'done' && realTask) completeTask(realTask);
+    if (act === 'next') {
+      const next = T.nextOpen(currentTasks(), realTask);
+      if (next) {
+        store.update((d) => { d.currentTaskId = next.id; });
+        broadcastTasks(tasksPayload());
+        startFocus({ id: next.id, text: next.text });
+      } else {
+        send('toast', { text: 'No more open tasks' });
+      }
+    }
+    return avocadoState();
+  });
+  ipcMain.handle('avocado:attention', (_e, on) => {
+    if (typeof on === 'boolean' && avocado && !avocado.isDestroyed()) avocado.flashFrame(on);
+    return true;
+  });
   ipcMain.handle('pomodoro:pause', () => { applyPomo(P.pause(pomo, Date.now())); return pomoView(); });
   ipcMain.handle('pomodoro:resume', () => { applyPomo(P.resume(pomo, Date.now())); return pomoView(); });
   ipcMain.handle('pomodoro:stop', () => { applyPomo(P.stop(pomo, Date.now())); return pomoView(); });
@@ -405,11 +742,15 @@ function registerIpc() {
     if (typeof patch.openAtLogin === 'boolean') clean.openAtLogin = patch.openAtLogin;
     if (typeof patch.notifications === 'boolean') clean.notifications = patch.notifications;
     if (typeof patch.sound === 'boolean') clean.sound = patch.sound;
+    if (typeof patch.avocado === 'boolean') clean.avocado = patch.avocado;
+    if (typeof patch.typewriter === 'boolean') clean.typewriter = patch.typewriter;
     for (const k of ['focusMin', 'breakMin']) {
       if (Number.isFinite(patch[k])) clean[k] = Math.min(Math.max(Math.round(patch[k]), 1), 120);
     }
     store.update((d) => { d.settings = { ...d.settings, ...clean }; });
     if ('openAtLogin' in clean) applyLoginItem(clean.openAtLogin);
+    if ('avocado' in clean) setAvocadoVisible(clean.avocado);
+    if ('typewriter' in clean) setTypewriterVisible(clean.typewriter);
     return settings();
   });
 
@@ -452,6 +793,7 @@ function createWindow() {
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => { if (!HIDDEN_START) win.show(); });
+  win.webContents.once('did-finish-load', () => { if (!HIDDEN_START && !win.isDestroyed() && !win.isVisible()) win.show(); });   // fallback if ready-to-show never fires
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.on('close', (e) => {
@@ -479,6 +821,10 @@ function createTray() {
   tray.on('click', () => { if (win && win.isVisible() && win.isFocused()) win.hide(); else showWindow(); });
   const menu = () => Menu.buildFromTemplate([
     { label: 'Open Lifebot', click: () => showWindow() },
+    { label: 'Show avocado timer', type: 'checkbox', checked: settings().avocado !== false,
+      click: (item) => { store.update((d) => { d.settings = { ...d.settings, avocado: item.checked }; }); setAvocadoVisible(item.checked); send('settings:changed', settings()); } },
+    { label: 'Show typewriter card', type: 'checkbox', checked: settings().typewriter !== false,
+      click: (item) => { store.update((d) => { d.settings = { ...d.settings, typewriter: item.checked }; }); setTypewriterVisible(item.checked); send('settings:changed', settings()); } },
     { label: 'Chat with Lifebot', click: () => { showWindow(); send('navigate', 'chat'); } },
     { label: 'Open dashboard in Obsidian', click: () => { showWindow(); send('navigate', 'dashboard'); } },
     { type: 'separator' },
@@ -510,6 +856,9 @@ app.whenReady().then(async () => {
   registerIpc();
   createTray();
   createWindow();
+  if (settings().avocado !== false) createAvocado();
+  if (settings().typewriter !== false) createTypewriter();
+  watchTasksFile();
   await setupBackend();
   recordPlanned();
   refreshDataInBackground();
@@ -565,15 +914,290 @@ async function runSmoke(dir) {
   const chatReply = chat.reply;
   await sleep(500);
 
+  // ---- avocado integration (floating timer driven by Lifebot's clock)
+  const av = { exists: !!(avocado && !avocado.isDestroyed()) };
+  if (av.exists) {
+    const ajs = (code) => avocado.webContents.executeJavaScript(code);
+    const ashot = async (name) => { await sleep(700); avocado.webContents.invalidate(); await sleep(400); fs.writeFileSync(path.join(dir, name + '.png'), (await avocado.webContents.capturePage()).toPNG()); };
+    av.alwaysOnTop = avocado.isAlwaysOnTop();
+    av.visible = avocado.isVisible();
+    av.preloadApi = await ajs("Object.keys(window.pomodoroAPI).sort().join(',')");
+    av.nodeLeak = await ajs("typeof require + ',' + typeof process");
+    const firstOpen = currentTasks().find((t) => !t.checked);
+    startFocus({ id: firstOpen.id }, 25);                         // exactly what the Typewriter Start button does
+    await sleep(1500);
+    av.afterStart = await ajs('window.__pomo.debug().state');
+    av.taskShown = await ajs("document.getElementById('timer-task-display').textContent");
+    av.timeShown = await ajs("document.getElementById('timer-countdown').textContent");
+    av.dupStartIgnored = await ajs("document.getElementById('btn-start').click(); window.__pomo.debug().state");
+    await ashot('6-avocado-running');
+    pomo = { ...pomo, durationMs: Math.round(pomo.elapsedMs + (Date.now() - pomo.runningSince)) + 800 };   // end in ~0.8s
+    await sleep(3200);
+    av.celebrating = await ajs('window.__pomo.debug()');
+    av.lifebotPhaseAtCompletion = pomo.phase;
+    await ashot('7-avocado-celebrating');
+    await ajs("document.getElementById('btn-stop-alarm').click()");
+    await sleep(700);
+    av.afterStopWidget = await ajs('window.__pomo.debug().state');
+    av.afterStopLifebot = pomo.phase;
+    startFocus({ text: 'Abandon me' }, 25);
+    await sleep(1200);
+    await ajs("document.getElementById('btn-abandon').click()");
+    await sleep(700);
+    av.afterAbandonLifebot = pomo.phase;
+    av.afterAbandonWidget = await ajs('window.__pomo.debug().state');
+    av.initialBounds = avocado.getBounds();
+    avocado.setPosition(321, 187);
+    await sleep(1000);
+    av.savedPosition = store.get().avocadoPos;
+    setAvocadoVisible(false);
+    av.hidden = !avocado.isVisible();
+    setAvocadoVisible(true);
+    await sleep(300);
+    av.shownAgain = avocado.isVisible();
+    av.eventsQueued = (store.get().outbox || []).filter((o) => o.method === 'record_focus').map((o) => o.params.phase);
+  }
+
+  // ---- typewriter card integration
+  const tw = { exists: !!(typewriter && !typewriter.isDestroyed()) };
+  if (tw.exists) {
+    const tjs = (code) => typewriter.webContents.executeJavaScript(code);
+    const tshot = async (name) => { await sleep(700); typewriter.webContents.invalidate(); await sleep(400); fs.writeFileSync(path.join(dir, name + '.png'), (await typewriter.webContents.capturePage()).toPNG()); };
+    const dbg = () => tjs('window.__tw.debug()');
+    const readFile = () => fs.readFileSync(tasksFile(), 'utf8');
+    tw.alwaysOnTop = typewriter.isAlwaysOnTop();
+    tw.visible = typewriter.isVisible();
+    tw.api = await tjs("Object.keys(window.typewriterAPI).sort().join(',')");
+    tw.nodeLeak = await tjs("typeof require + ',' + typeof process");
+    const b1 = typewriter.getBounds();
+    tw.initialBounds = { x: b1.x, y: b1.y };
+    const b2 = av.initialBounds || { x: 0, y: 0, width: 0, height: 0 };
+    tw.overlapsAvocadoAtStart = !(b1.x + b1.width <= b2.x || b2.x + b2.width <= b1.x || b1.y + b1.height <= b2.y || b2.y + b2.height <= b1.y);
+    tw.initial = (await dbg()).task;                                   // run 2 should restore the earlier choice
+    if (tw.initial.state === 'none') {
+      await tshot('8-typewriter-none');
+      await js("[...document.querySelectorAll('.pick')][0].click()");   // the real button in Lifebot's Typewriter tab
+      await sleep(600);
+    }
+    tw.afterPick = (await dbg()).task;
+    await tshot('9-typewriter-current');
+
+    const edit = async (text) => {
+      await tjs("document.getElementById('view').click()");
+      await tjs('(() => { const e = document.getElementById("editor"); e.value = ' + JSON.stringify(text) + '; e.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); })()');
+      await sleep(700);
+      return dbg();
+    };
+    const esc = () => tjs('document.getElementById("editor").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))');
+
+    tw.emptyEdit = await edit('');
+    await esc(); await sleep(200);
+    tw.tooLongEdit = await edit('x'.repeat(201));
+    await esc(); await sleep(200);
+    tw.multilineEdit = await edit('line one\nline two');
+    await esc(); await sleep(200);
+    tw.fileUnchangedAfterRejects = readFile().includes(tw.afterPick.text);
+
+    const newText = tw.afterPick.text.endsWith(' (edited)') ? tw.afterPick.text.replace(' (edited)', '') : tw.afterPick.text + ' (edited)';
+    tw.goodEdit = await edit(newText);
+    tw.fileHasEdit = readFile().includes(newText);
+    tw.storedCurrentId = store.get().currentTaskId;
+    tw.lifebotSeesEdit = (await js("[...document.querySelectorAll('.task-text')].map((e) => e.textContent)")).includes(newText);
+    await tshot('10-typewriter-saved');
+
+    // an edit made outside the app while the card is open must never be overwritten
+    await tjs("document.getElementById('view').click()");
+    writeTasksMarkdown(readFile().replace(newText, 'Changed behind its back'));
+    await sleep(900);
+    await tjs('(() => { const e = document.getElementById("editor"); e.value = "My stale edit"; e.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); })()');
+    await sleep(700);
+    tw.staleEdit = await dbg();
+    tw.outsideEditSurvived = readFile().includes('Changed behind its back') && !readFile().includes('My stale edit');
+    await esc();
+    writeTasksMarkdown(readFile().replace('Changed behind its back', newText));   // restore for the next run
+    await sleep(600);
+    tw.afterRestore = (await dbg()).task;
+
+    typewriter.setPosition(40, 60);
+    await sleep(1000);
+    tw.savedPosition = store.get().typewriterPos;
+    setTypewriterVisible(false);
+    tw.hidden = !typewriter.isVisible();
+    setTypewriterVisible(true);
+    await sleep(300);
+    tw.shownAgain = typewriter.isVisible();
+  }
+
+  // ---- continuity: minimize/restore, card -> timer -> done/next, hide, open app
+  const fl = {};
+  if (avocado && typewriter && !avocado.isDestroyed() && !typewriter.isDestroyed()) {
+    const aj = (code) => avocado.webContents.executeJavaScript(code);
+    const tj = (code) => typewriter.webContents.executeJavaScript(code);
+    const ashot = async (name) => { await sleep(600); avocado.webContents.invalidate(); await sleep(300); fs.writeFileSync(path.join(dir, name + '.png'), (await avocado.webContents.capturePage()).toPNG()); };
+    const tshot = async (name) => { await sleep(600); typewriter.webContents.invalidate(); await sleep(300); fs.writeFileSync(path.join(dir, name + '.png'), (await typewriter.webContents.capturePage()).toPNG()); };
+    const corner = (b) => [b.x + b.width, b.y + b.height];
+    addTask('Second open task'); addTask('Third open task');
+    setAvocadoVisible(true); setTypewriterVisible(true);
+    avocado.setPosition(500, 300); typewriter.setPosition(150, 300); await sleep(500);
+
+    // minimize both with their own buttons; the bottom-right corner stays put
+    const a0 = avocado.getBounds(); const t0 = typewriter.getBounds();
+    await aj("document.getElementById('wc-min').click()");
+    await tj("document.getElementById('wc-min').click()");
+    await sleep(700);
+    const a1 = avocado.getBounds(); const t1 = typewriter.getBounds();
+    fl.mini = {
+      avocadoSize: [a1.width, a1.height], typewriterSize: [t1.width, t1.height],
+      avocadoCornerKept: JSON.stringify(corner(a0)) === JSON.stringify(corner(a1)),
+      typewriterCornerKept: JSON.stringify(corner(t0)) === JSON.stringify(corner(t1)),
+      avocadoClass: await aj("document.body.classList.contains('mini')"), typewriterClass: (await tj('window.__tw.debug()')).mini,
+      avocadoMiniText: await aj("document.getElementById('mini-time').textContent"),
+      stillOnTop: avocado.isAlwaysOnTop() && typewriter.isAlwaysOnTop(), stillVisible: avocado.isVisible() && typewriter.isVisible(),
+      stored: store.get().collapsed,
+    };
+    await ashot('11-avocado-mini'); await tshot('12-typewriter-mini');
+    await aj("document.getElementById('wc-expand').click()");
+    await tj("document.getElementById('wc-expand').click()");
+    await sleep(700);
+    const a2 = avocado.getBounds(); const t2 = typewriter.getBounds();
+    fl.expanded = { avocadoSize: [a2.width, a2.height], typewriterSize: [t2.width, t2.height], stored: store.get().collapsed };
+
+    // card -> timer in one step (the current task was picked earlier; make sure it is open)
+    const cur = currentTasks().find((t) => t.id === store.get().currentTaskId);
+    fl.currentBefore = cur ? { text: cur.text, checked: cur.checked } : null;
+    await tj("document.getElementById('start').click()");                 // opens the length picker
+    await sleep(300);
+    await tj("document.getElementById('picker-go').click()");              // confirm the suggested length
+    await sleep(1500);
+    fl.cardStart = { phase: pomo.phase, task: pomo.task && pomo.task.text, avocado: await aj('window.__pomo.debug().state'),
+      avocadoTask: await aj("document.getElementById('timer-task-display').textContent"), cardButton: (await tj('window.__tw.debug()')).startLabel };
+    // minimized while running: the mini avocado counts down
+    await aj("document.getElementById('wc-min').click()"); await sleep(700);
+    fl.miniWhileRunning = await aj("document.getElementById('mini-time').textContent");
+    await ashot('13-avocado-mini-running');
+
+    // finish: the avocado must auto-expand, then DONE marks the task done
+    pomo = { ...pomo, durationMs: Math.round(pomo.elapsedMs + (Date.now() - pomo.runningSince)) + 800 };
+    await sleep(3400);
+    fl.autoExpanded = !isCollapsed('avocado') && avocado.getBounds().width === 266;
+    fl.celebrating = (await aj('window.__pomo.debug()')).celebrating;
+    await ashot('14-avocado-actions');
+    const doneId = store.get().currentTaskId;
+    await aj("document.getElementById('btn-done').click()");
+    await sleep(900);
+    const doneTask = currentTasks().find((t) => t.id === doneId);
+    fl.done = { checkedInFile: !!(doneTask && doneTask.checked), lifebotPhase: pomo.phase, cardLabel: (await tj('window.__tw.debug()')).startLabel,
+      completedEventQueued: (store.get().outbox || []).some((o) => o.method === 'record_task' && o.params.status === 'completed' && o.params.task_id === doneId) };
+
+    // NEXT: run a different open task to completion, press NEXT, expect the following open task to start
+    const open = currentTasks().filter((t) => !t.checked);
+    fl.openLeft = open.length;
+    if (open.length >= 2) {
+      startFocus({ id: open[0].id }, 25);
+      await sleep(800);
+      pomo = { ...pomo, durationMs: Math.round(pomo.elapsedMs + (Date.now() - pomo.runningSince)) + 800 };
+      await sleep(3400);
+      await aj("document.getElementById('btn-next').click()");
+      await sleep(1200);
+      fl.next = { expectedTask: open[1].text, runningTask: pomo.task && pomo.task.text, phase: pomo.phase, currentNow: store.get().currentTaskId === open[1].id,
+        avocadoTask: await aj("document.getElementById('timer-task-display').textContent") };
+      await aj("document.getElementById('btn-abandon').click()"); await sleep(600);
+    }
+
+    // hide with the x button, open Lifebot with the house button, then bring the widget back
+    await tj("document.getElementById('wc-hide').click()");
+    await sleep(500);
+    fl.hide = { typewriterHidden: !typewriter.isVisible(), settingStored: settings().typewriter === false };
+    win.hide();
+    await aj("document.getElementById('wc-home').click()");
+    await sleep(700);
+    fl.home = { lifebotVisible: win.isVisible() };
+    store.update((d) => { d.settings = { ...d.settings, typewriter: true }; });
+    setTypewriterVisible(true);
+    await sleep(400);
+    fl.restored = { typewriterVisible: typewriter.isVisible() };
+  }
+
+  // ---- choosing and adjusting the timer length
+  const ln = {};
+  if (avocado && typewriter && !avocado.isDestroyed() && !typewriter.isDestroyed()) {
+    const aj = (code) => avocado.webContents.executeJavaScript(code);
+    const tj = (code) => typewriter.webContents.executeJavaScript(code);
+    const mins = () => Math.round(pomo.durationMs / 60000);
+    const guard = (run) => async (code) => { try { return await run(code); } catch (e) { (ln.failedSteps = ln.failedSteps || []).push(String(code).slice(0, 110)); return null; } };
+    const jsq = guard(js), ajq = guard(aj), tjq = guard(tj);
+    if (pomo.phase !== 'idle') applyPomo(P.stop(pomo, Date.now()));
+    await jsq("document.querySelector('[data-tab=tasks]').click()");
+    await sleep(500);
+
+    // Start on a task in Lifebot now asks for the length first
+    await jsq("document.querySelector('.start').click()");
+    await sleep(400);
+    ln.pickerOpened = await jsq("!document.getElementById('picker').hidden");
+    ln.pickerTask = await jsq("document.getElementById('picker-task').textContent");
+    ln.pickerStartValue = await jsq("document.getElementById('picker-minutes').value");
+    ln.timerNotStartedYet = pomo.phase === 'idle';
+    await jsq("document.getElementById('picker-minutes').value = '0'; document.getElementById('picker-go').click()");
+    await sleep(300);
+    ln.invalidRejected = { error: await jsq("document.getElementById('picker-error').textContent"), stillOpen: await jsq("!document.getElementById('picker').hidden"), idle: pomo.phase === 'idle' };
+    await jsq("document.querySelectorAll('#picker-presets .chip')[2].click()");
+    ln.presetHighlighted = await jsq("document.querySelector('#picker-presets .chip.on').dataset.m");
+    await jsq("document.getElementById('picker-go').click()");
+    await sleep(1300);
+    const pickedTask = pomo.task && pomo.task.text;
+    ln.started = { phase: pomo.phase, minutes: mins(), task: pickedTask, focusTabShown: await jsq("document.getElementById('view-focus').classList.contains('active')") };
+
+    ln.mainMinimizedAfterStart = win.isMinimized();
+    ln.floating = { avocadoVisible: avocado.isVisible(), typewriterVisible: typewriter.isVisible(), avocadoOnTop: avocado.isAlwaysOnTop(), typewriterOnTop: typewriter.isAlwaysOnTop() };
+    ln.cardFollowsStartedTask = ((await tjq('window.__tw.debug()')).task || {}).text === pickedTask;
+    // adjust while running: from the avocado, then from the Focus tab
+    await ajq("document.getElementById('btn-plus').click()"); await sleep(500);
+    ln.afterAvocadoPlus = mins();
+    await jsq("document.getElementById('focus-plus').click()"); await sleep(500);
+    ln.afterFocusPlus = mins();
+    await ajq("document.getElementById('btn-minus').click()"); await sleep(500);
+    ln.afterAvocadoMinus = mins();
+    ln.avocadoShowsNewTime = await ajq("document.getElementById('timer-countdown').textContent");
+    await jsq("for (let i = 0; i < 40; i++) document.getElementById('focus-plus').click()"); await sleep(900);
+    ln.cappedAt = mins();
+    await jsq("for (let i = 0; i < 60; i++) document.getElementById('focus-minus').click()"); await sleep(900);
+    ln.floorMinutes = Math.round(pomo.durationMs / 60000);           // at least one minute remains
+    await jsq("document.getElementById('focus-plus').click()"); await sleep(300);
+    applyPomo(P.stop(pomo, Date.now()));
+    ln.remembered = (store.get().taskMinutes || {})[T.slug(pickedTask || '')];
+
+    // the next time, the picker suggests the remembered length
+    await jsq("document.querySelector('[data-tab=tasks]').click()"); await sleep(400);
+    await jsq("[...document.querySelectorAll('.task')].find((r) => r.querySelector('.task-text').textContent === " + JSON.stringify(pickedTask) + ").querySelector('.start').click()");
+    await sleep(400);
+    ln.nextPicker = { value: await jsq("document.getElementById('picker-minutes').value"), hint: await jsq("document.getElementById('picker-hint').textContent") };
+    await jsq("document.getElementById('picker').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await sleep(300);
+    ln.escapeClosedWithoutStarting = { closed: await jsq("document.getElementById('picker').hidden"), idle: pomo.phase === 'idle' };
+
+    // the typewriter card has its own picker
+    store.update((d) => { d.currentTaskId = (currentTasks().find((t) => !t.checked) || {}).id || null; });
+    broadcastTasks(tasksPayload()); await sleep(500);
+    await tjq("(() => { const p = document.getElementById('picker'); if (!p.hidden) p.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); })()");
+    await tjq("document.getElementById('start').click()"); await sleep(400);
+    const cardPicker = await tjq('window.__tw.debug()');
+    typewriter.webContents.invalidate(); await sleep(500); fs.writeFileSync(path.join(dir, '15-card-picker.png'), (await typewriter.webContents.capturePage()).toPNG());
+    ln.cardPicker = { open: cardPicker.pickerOpen, value: cardPicker.pickerValue, note: cardPicker.pickerNote, timerNotStarted: pomo.phase === 'idle' };
+    await tjq("document.querySelectorAll('#picker .chip')[0].click(); document.getElementById('picker-go').click()");
+    await sleep(1300);
+    ln.cardStarted = { phase: pomo.phase, minutes: mins() };
+    applyPomo(P.stop(pomo, Date.now()));
+  }
+
   const outbox = (store.get().outbox || []).map((o) => `${o.method}:${o.params.phase || o.params.status || ''}`);
   if (bridge) { await sleep(1500); await flushOutbox(); }
   const outboxLeft = (store.get().outbox || []).length;
-  const result = { errors, afterStart, paused, afterStop, chat, chatReply, outbox, outboxLeft,
+  const result = { errors, afterStart, paused, afterStop, chat, chatReply, outbox, outboxLeft, avocado: av, typewriter: tw, flow: fl, length: ln,
     reminders: remindersView().length, tasks: currentTasks().map((t) => [t.text, t.checked]) };
   fs.writeFileSync(path.join(dir, 'smoke.json'), JSON.stringify(result, null, 2));
   quitting = true;
   app.quit();
 }
 
-app.on('before-quit', () => { quitting = true; if (bridge) bridge.stop(); });
+app.on('before-quit', () => { quitting = true; if (bridge) bridge.stop(); if (avocado && !avocado.isDestroyed()) avocado.destroy(); if (typewriter && !typewriter.isDestroyed()) typewriter.destroy(); if (tasksWatcher) tasksWatcher.close(); });
 app.on('window-all-closed', () => { /* stay alive in the tray */ });
