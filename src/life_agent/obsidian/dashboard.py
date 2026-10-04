@@ -24,12 +24,12 @@ from life_agent.pixel import pixel_svg
 DEFAULT_DIR = Path.home() / "OneDrive" / "Desktop" / "ananya" / "ANANYA-OS" / "Dashboard"
 NOTE_NAME = "Life Agent Dashboard.md"
 
-# Crystal cave palette
-BG, PANEL, EDGE, SHADOW = "#0b0a24", "#15123d", "#3b34a8", "#05041a"
-INK, MUTED, GRIDC = "#ece9ff", "#938ec9", "#2a2570"
-CYAN, MAGENTA, GOLD, GREEN = "#38e8ff", "#ff4fd8", "#ffd23f", "#3dffa0"
-PURPLE, RED, ORANGE = "#9b6bff", "#ff5470", "#ff9f43"
-HEAT = ["#1d1950", "#3b34a8", "#8a5cff", "#ff4fd8", "#ffd23f"]
+# Warm avocado-and-typewriter palette (matches the app and the floating widgets)
+BG, PANEL, EDGE, SHADOW = "#2a1b12", "#3a271a", "#8a5a2b", "#140c07"
+INK, MUTED, GRIDC = "#F5EDE0", "#c9b9a3", "#5a3d2a"
+CYAN, MAGENTA, GOLD, GREEN = "#a9e23d", "#ff6584", "#ffd23f", "#72bd27"
+PURPLE, RED, ORANGE = "#c58bff", "#C1443C", "#c38a42"
+HEAT = ["#3a271a", "#8a5a2b", "#c38a42", "#ff6584", "#ffd23f"]
 PIXEL_FONT = "'Press Start 2P','Courier New',ui-monospace,monospace"
 BODY_FONT = "Consolas,'Courier New',ui-monospace,monospace"
 
@@ -114,13 +114,9 @@ def stacked_bars(days: list[dict], width: int = 640, height: int = 230) -> str:
     return _svg(width, height, "".join(parts), "focus")
 
 
-def pixel_pie(items: list[tuple[str, float, str]], center_label: str = "total", chart: str = "",
-              n: int = 23, cell: int = 8) -> str:
-    """A donut drawn as a grid of square cells, plus a legend. items: [(label, value, colour)]."""
-    items = [(label, value, colour) for label, value, colour in items if value > 0]
+def _pie_svg(items: list[tuple[str, float, str]], center_label: str, chart: str = "", n: int = 23, cell: int = 8) -> str:
+    """The pixel donut alone, as an <svg> string. items must already be filtered to value > 0."""
     total = sum(v for _, v, _ in items)
-    if not total:
-        return _empty(260, 120, "No data in this period yet", chart)
     radius, hole = n / 2, n / 2 * 0.46
     bounds, acc = [], 0.0
     for _, value, _ in items:
@@ -138,8 +134,7 @@ def pixel_pie(items: list[tuple[str, float, str]], center_label: str = "total", 
             cells[seg].append((x, y))
     parts = []
     for i, (label, value, colour) in enumerate(items):
-        rects = "".join(f'<rect x="{x * cell}" y="{y * cell}" width="{cell}" height="{cell}"/>'
-                        for x, y in cells[i])
+        rects = "".join(f'<rect x="{x * cell}" y="{y * cell}" width="{cell}" height="{cell}"/>' for x, y in cells[i])
         parts.append(f'<g style="fill:{colour}"><title>{_esc(label)}: {int(value)} ({round(100 * value / total)}%)'
                      f'</title>{rects}</g>')
     size = n * cell
@@ -147,13 +142,24 @@ def pixel_pie(items: list[tuple[str, float, str]], center_label: str = "total", 
                  f'font-size:22px;font-weight:700;font-family:{PIXEL_FONT}">{int(total)}</text>')
     parts.append(f'<text x="{size // 2}" y="{size // 2 + 20}" text-anchor="middle" style="fill:{MUTED};'
                  f'font-size:10px">{_esc(center_label)}</text>')
+    return _svg(size, size, "".join(parts), chart)
+
+
+def pixel_pie(items: list[tuple[str, float, str]], center_label: str = "total", chart: str = "",
+              n: int = 23, cell: int = 8) -> str:
+    """A donut drawn as a grid of square cells, plus a legend. items: [(label, value, colour)]."""
+    items = [(label, value, colour) for label, value, colour in items if value > 0]
+    total = sum(v for _, v, _ in items)
+    if not total:
+        return _empty(260, 120, "No data in this period yet", chart)
+    size = n * cell
     legend = "".join(
         f'<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px;color:{INK}">'
         f'<span style="width:12px;height:12px;background:{colour};display:inline-block;border:2px solid {SHADOW}">'
         f'</span><span>{_esc(label)}</span><span style="color:{MUTED};margin-left:auto">{int(value)}</span></div>'
         for label, value, colour in items)
     return (f'<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
-            f'<div style="width:{size}px;flex:0 0 auto">{_svg(size, size, "".join(parts), chart)}</div>'
+            f'<div style="width:{size}px;flex:0 0 auto">{_pie_svg(items, center_label, chart, n, cell)}</div>'
             f'<div style="flex:1 1 130px;min-width:130px">{legend}</div></div>')
 
 
@@ -434,15 +440,25 @@ def render_note(events: list[dict], today: date | None = None, now: datetime | N
     ])
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)  # atomic: Obsidian never sees a half-written file
+
+
 def write_dashboard(out_dir: Path | str | None = None, events: list[dict] | None = None,
                     today: date | None = None) -> Path:
+    """Write the dashboard note plus its SVG images; returns the note path."""
+    from life_agent.obsidian import dashboard_images
     out = Path(out_dir) if out_dir else dashboard_dir()
     out.mkdir(parents=True, exist_ok=True)
-    note = render_note(store.load_all() if events is None else events, today=today)
+    events = store.load_all() if events is None else events
+    note, files = dashboard_images.build(events, today=today)
+    for name, svg in files.items():
+        _atomic_write(out / name, svg)          # images first, so the note never points at a missing file
+    _atomic_write(out / "Focus Log.md", dashboard_images.focus_log(events, today=today))
     path = out / NOTE_NAME
-    tmp = path.with_suffix(".md.tmp")
-    tmp.write_text(note, encoding="utf-8")
-    tmp.replace(path)  # atomic: Obsidian never sees a half-written note
+    _atomic_write(path, note)
     return path
 
 
