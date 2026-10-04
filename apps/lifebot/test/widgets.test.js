@@ -69,3 +69,13 @@ test('starting a session floats the widgets and the card follows the task', () =
   assert.ok(fn.includes('floatWidgets()'));
   assert.match(main, /ipcMain\.handle\('pomodoro:start'[\s\S]{0,400}win\.minimize\(\)/);
 });
+
+test('smoke/test mode can never touch real personal data (profile, tasks file, dashboard)', () => {
+  // Without these defaults the smoke run wrote to the real Obsidian Tasks.md.
+  assert.match(main, /SMOKE_DIR && !process\.env\.LIFEBOT_USER_DATA\) process\.env\.LIFEBOT_USER_DATA = path\.join\(SMOKE_DIR/);
+  assert.match(main, /SMOKE_DIR && !process\.env\.LIFEBOT_TASKS_FILE\) process\.env\.LIFEBOT_TASKS_FILE = path\.join\(SMOKE_DIR/);
+  assert.match(main, /LIFE_AGENT_DASHBOARD_DIR: path\.join\(sandbox/);
+  // the tasks file is resolved only through tasksFile(), whose env override wins over the stored real path
+  assert.match(main, /tasksFile = \(\) => process\.env\.LIFEBOT_TASKS_FILE \|\|/);
+  assert.ok(!/ANANYA-OS/.test(main), 'no real vault path may be hard-coded in main.js');
+});

@@ -41,6 +41,9 @@ app.setAppUserModelId(APP_ID);
 
 // Test mode (LIFEBOT_SMOKE_DIR): isolated profile, no autostart registration, no single-instance lock
 const SMOKE_DIR = process.env.LIFEBOT_SMOKE_DIR || '';
+// Smoke runs must never touch real data: default the profile and tasks file into the smoke dir
+if (SMOKE_DIR && !process.env.LIFEBOT_USER_DATA) process.env.LIFEBOT_USER_DATA = path.join(SMOKE_DIR, 'profile');
+if (SMOKE_DIR && !process.env.LIFEBOT_TASKS_FILE) process.env.LIFEBOT_TASKS_FILE = path.join(SMOKE_DIR, 'tasks.md');
 if (process.env.LIFEBOT_USER_DATA) app.setPath('userData', process.env.LIFEBOT_USER_DATA);
 
 if (!SMOKE_DIR && !app.requestSingleInstanceLock()) {
@@ -896,6 +899,8 @@ async function runSmoke(dir) {
   await js(`document.querySelector('[data-tab="tasks"]').click()`); await shot('2-typewriter');
   // the Start button on a task must switch to Focus and start the timer for THAT task
   await js(`[...document.querySelectorAll('.start')][0].click()`);
+  await sleep(300);
+  await js(`document.getElementById('picker-go').click()`);   // Start now opens the length picker first
   await sleep(1500);
   const afterStart = await js(`({ tabActive: document.getElementById('view-focus').classList.contains('active'),
     task: document.getElementById('focus-task').textContent, phase: document.getElementById('focus-phase').textContent,
