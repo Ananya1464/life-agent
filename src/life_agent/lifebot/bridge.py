@@ -91,10 +91,8 @@ def handle_record_focus(params: dict) -> dict:
 
 
 def _after_session() -> None:
-    """Push the new event to Notion and refresh the Obsidian dashboard, without blocking."""
-    from life_agent.desktop import sync
+    """Refresh the Obsidian dashboard and focus log, without blocking. Sessions live in Obsidian only (no Notion push)."""
     from life_agent.obsidian import dashboard
-    sync.sync_in_background()
     dashboard.refresh_in_background()
 
 

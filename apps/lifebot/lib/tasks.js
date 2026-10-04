@@ -45,8 +45,26 @@ function addTask(markdown, text) {
   return out.endsWith('\n') ? out : out + '\n';
 }
 
+/** Replace the text of one task line, keeping its indent, checkbox state and "(done ...)" marker. */
+function setTaskText(markdown, lineIndex, newText) {
+  const eol = String(markdown).includes('\r\n') ? '\r\n' : '\n';
+  const lines = String(markdown).split(/\r?\n/);
+  if (lineIndex < 0 || lineIndex >= lines.length) return null;
+  const m = lines[lineIndex].match(/^(\s*-\s+\[[ xX]\]\s*)(.*?)(\s*\(done\s+[^)]*\))?\s*$/);
+  if (!m) return null;
+  lines[lineIndex] = m[1] + newText + (m[3] || '');
+  return lines.join(eol);
+}
+
 function toggle(markdown, lineIndex, checked, timestamp) {
   return Parser.updateTaskInMarkdown(markdown, lineIndex, checked, timestamp);
 }
 
-module.exports = { DEFAULT_MARKDOWN, slug, taskId, listTasks, addTask, toggle };
+/** The next unchecked task after `afterId` (wrapping around); with no match for afterId, the first open task. */
+function nextOpen(tasks, afterId) {
+  const i = tasks.findIndex((t) => t.id === afterId);
+  const order = i === -1 ? tasks : [...tasks.slice(i + 1), ...tasks.slice(0, i)];
+  return order.find((t) => !t.checked) || null;
+}
+
+module.exports = { DEFAULT_MARKDOWN, slug, taskId, listTasks, addTask, toggle, setTaskText, nextOpen };
