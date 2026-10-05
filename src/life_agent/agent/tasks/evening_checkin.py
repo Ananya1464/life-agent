@@ -1,5 +1,6 @@
 """~9:30 PM IST — weight-loss habit accountability check-in.
 Writes to the dedicated Evening Check-in database in Notion and emails."""
+from life_agent import briefs
 from life_agent import dates
 from life_agent.events import event_model
 from life_agent.agent import llm
@@ -28,6 +29,7 @@ def run():
     )
     nudge = llm.generate(prompt, temperature=0.9)  # higher temp → varied wording
     print(nudge)
+    briefs.save("evening_checkin", nudge)
 
     # Write to the dedicated Evening Check-in database (primary delivery)
     try:

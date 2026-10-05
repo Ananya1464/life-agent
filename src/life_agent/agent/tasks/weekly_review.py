@@ -2,6 +2,7 @@
 Best run on Sunday evening or Monday morning."""
 from datetime import timedelta
 
+from life_agent import briefs
 from life_agent import dates
 from life_agent.notifications import emailer
 from life_agent.agent import llm
@@ -61,6 +62,7 @@ def run():
     )
     review = llm.generate(prompt)
     print(review)
+    briefs.save("weekly_review", review)
 
     # STEP 3 — write to today's Notion entry
     try:

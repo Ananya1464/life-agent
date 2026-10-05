@@ -5,6 +5,7 @@ Pipeline (mirrors Claude's Cowork research runs):
 Primary delivery: today's Notion Daily Log entry. Email is secondary."""
 from datetime import timedelta
 
+from life_agent import briefs
 from life_agent import dates
 from life_agent.notifications import emailer
 from life_agent.agent import grounding
@@ -131,6 +132,7 @@ def run():
         else:
             print("[grounding] all extracted entities verified in research dossier.")
     print(briefing)
+    briefs.save("ai_edge", briefing)
 
     # 5. Deliver — Notion primary, email secondary
     try:

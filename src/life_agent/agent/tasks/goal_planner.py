@@ -3,6 +3,7 @@ Reads goals from today's Notion entry, builds a schedule around calendar events,
 and writes the plan into tomorrow's entry under '📋 Full Day Plan'."""
 from datetime import timedelta
 
+from life_agent import briefs
 from life_agent.integrations import calendar_feed
 from life_agent import dates
 from life_agent.notifications import emailer
@@ -103,6 +104,7 @@ def run():
         ),
     )
     print(plan)
+    briefs.save("goal_planner", plan)
 
     # STEP 4 — write to tomorrow's Notion entry
     try:

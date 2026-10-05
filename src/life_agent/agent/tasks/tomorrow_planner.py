@@ -1,5 +1,6 @@
 """~10:00 PM IST — adaptive 'Tomorrow's plan'.
 Reads today's achievements from Notion, writes the plan into tomorrow's entry."""
+from life_agent import briefs
 from life_agent.integrations import calendar_feed
 from life_agent import dates
 from life_agent.notifications import emailer
@@ -88,6 +89,7 @@ def run():
         ),
     )
     print(plan)
+    briefs.save("tomorrow_planner", plan)
 
     # STEP 3 — write it into TOMORROW's Notion entry (primary delivery)
     try:
