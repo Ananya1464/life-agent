@@ -56,6 +56,16 @@ function setTaskText(markdown, lineIndex, newText) {
   return lines.join(eol);
 }
 
+/** Delete one task line. Returns the new markdown, or null if that line is not a task checkbox. */
+function removeTask(markdown, lineIndex) {
+  const eol = String(markdown).includes('\r\n') ? '\r\n' : '\n';
+  const lines = String(markdown).split(/\r?\n/);
+  if (!Number.isInteger(lineIndex) || lineIndex < 0 || lineIndex >= lines.length) return null;
+  if (!/^\s*-\s+\[[ xX]\]/.test(lines[lineIndex])) return null;
+  lines.splice(lineIndex, 1);
+  return lines.join(eol);
+}
+
 function toggle(markdown, lineIndex, checked, timestamp) {
   return Parser.updateTaskInMarkdown(markdown, lineIndex, checked, timestamp);
 }
@@ -67,4 +77,4 @@ function nextOpen(tasks, afterId) {
   return order.find((t) => !t.checked) || null;
 }
 
-module.exports = { DEFAULT_MARKDOWN, slug, taskId, listTasks, addTask, toggle, setTaskText, nextOpen };
+module.exports = { DEFAULT_MARKDOWN, slug, taskId, listTasks, addTask, toggle, setTaskText, removeTask, nextOpen };

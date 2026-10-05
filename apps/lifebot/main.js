@@ -14,6 +14,8 @@ const envLib = require('./lib/env.js');
 const R = require('./lib/reminders.js');
 const P = require('./lib/pomodoro.js');
 const T = require('./lib/tasks.js');
+const Days = require('./lib/taskdays.js');
+const Nudges = require('./lib/nudges.js');
 const ntfy = require('./lib/ntfy.js');
 const widgetpos = require('./lib/widgetpos.js');
 const taskedit = require('./lib/taskedit.js');
@@ -22,7 +24,7 @@ const { createStore } = require('./lib/store.js');
 const APP_ID = 'com.ananya.lifebot';
 const HIDDEN_START = process.argv.includes('--hidden');
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
-const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, avocado: true, typewriter: true, focusMin: 25, breakMin: 5 };
+const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, avocado: true, typewriter: true, nudges: true, focusMin: 25, breakMin: 5 };
 const OUTBOX_MAX = 500;
 
 let win = null;
@@ -88,7 +90,19 @@ function writeTasksMarkdown(markdown) {
   fs.renameSync(tmp, tasksFile());
 }
 
-const currentTasks = () => T.listTasks(readTasksMarkdown(), todayIso());
+/** Tasks in the file, each annotated with the day it was first seen (see lib/taskdays.js). */
+function currentTasks() {
+  const today = todayIso();
+  const res = Days.annotate(T.listTasks(readTasksMarkdown(), today), store.get().taskFirstSeen, today);
+  if (res.changed) store.update((d) => { d.taskFirstSeen = res.firstSeen; });
+  // a task carried over from yesterday keeps being the current one: ids start with today's date
+  const cur = store.get().currentTaskId;
+  if (cur && !res.tasks.some((t) => t.id === cur)) {
+    const moved = Days.idForDay(cur, today);
+    if (moved !== cur && res.tasks.some((t) => t.id === moved)) store.update((d) => { d.currentTaskId = moved; });
+  }
+  return res.tasks;
+}
 
 function notify(title, body, tab) {
   if (!settings().notifications || !Notification.isSupported()) return;
@@ -210,15 +224,73 @@ function handlePomoEvent(e) {
   } else if (e.type === 'completed') {
     enqueue('record_focus', { ...base, phase: 'completed', duration_seconds: e.durationSec });
     bumpStats(e.durationSec);
+    store.update((d) => { d.lastFocusEndedAt = Date.now(); });
     celebrateAvocado();
     notify('Focus session complete', `${taskText} - take a ${settings().breakMin}-minute break.`, 'focus');
     send('toast', { text: `Focus complete: ${taskText}` });
     pushPhone('Focus session complete', taskText);
   } else if (e.type === 'abandoned') {
     enqueue('record_focus', { ...base, phase: 'abandoned', duration_seconds: e.durationSec });
+    store.update((d) => { d.lastFocusEndedAt = Date.now(); });
   } else if (e.type === 'break_done') {
     notify('Break over', 'Ready for the next focus session?', 'focus');
   }
+}
+
+// ------------------------------------------------------------------ proactive nudges (rules live in lib/nudges.js)
+/** Everything the pure engine needs, read from the app's own state. */
+function nudgeInput(now = Date.now()) {
+  const st = store.get();
+  const v = P.view(pomo, now);
+  return {
+    now, tzOffsetMin: new Date(now).getTimezoneOffset(),
+    settings: { nudges: settings().nudges !== false && settings().notifications !== false },
+    tasks: currentTasks().map((t) => ({ id: t.id, text: t.text, checked: !!t.checked, isToday: !!t.isToday, carried: !!t.carried, date: t.date })),
+    currentTaskId: st.currentTaskId || null,
+    pomo: { phase: v.phase, running: !!v.running },
+    lastFocusEndedAt: st.lastFocusEndedAt || null,
+    log: st.nudgeLog || { sent: [] },
+    snoozedUntil: st.nudgeSnoozedUntil || null,
+  };
+}
+
+/** What a click on a nudge does. Only ever an explicit, in-app action: nothing is sent or deleted. */
+function actOnNudge(nudge) {
+  const task = nudge.taskId ? currentTasks().find((t) => t.id === nudge.taskId) : null;
+  if (nudge.action === 'start' && task && !task.checked && pomo.phase === 'idle') {
+    startFocus({ id: task.id, text: task.text }, nudge.minutes || null);
+  } else if (nudge.action === 'pick' && task) {
+    store.update((d) => { d.currentTaskId = task.id; });
+    broadcastTasks(tasksPayload());
+    showWindow(); send('navigate', 'tasks');
+  } else if (nudge.action === 'triage') {
+    showWindow(); send('navigate', 'tasks');
+  } else if (nudge.action === 'wrapup') {
+    showWindow(); send('navigate', 'chat');
+  }
+}
+
+function showNudge(nudge, now = Date.now()) {
+  store.update((d) => { d.nudgeLog = Nudges.recordOutcome(d.nudgeLog || { sent: [] }, nudge, null, now); });
+  const resolve = (outcome) => store.update((d) => { d.nudgeLog = Nudges.recordOutcome(d.nudgeLog || { sent: [] }, nudge, outcome, Date.now()); });
+  const n = new Notification({ title: nudge.title, body: nudge.body, icon: ICON_PATH, silent: true });
+  let answered = false;
+  n.on('click', () => { answered = true; resolve('started'); actOnNudge(nudge); });
+  n.on('close', () => { if (!answered) { answered = true; resolve('dismissed'); } });
+  n.show();
+}
+
+/** One check; shows at most one gentle prompt. Never runs in test mode. */
+function runNudgeCheck(now = Date.now()) {
+  if (!store || SMOKE_DIR || !Notification.isSupported()) return null;
+  let nudge = null;
+  try { nudge = Nudges.decide(nudgeInput(now)); } catch (err) { console.error('nudge check failed:', err); }
+  if (nudge) showNudge(nudge, now);
+  return nudge;
+}
+
+function snoozeNudges(ms) {
+  store.update((d) => { d.nudgeSnoozedUntil = Date.now() + ms; });
 }
 
 function bumpStats(seconds) {
@@ -355,18 +427,19 @@ function completeTask(id) {
 }
 
 // ------------------------------------------------------------------ floating typewriter card (current task)
-const TW_SIZE = { width: 290, height: 236 };
+const TW_SIZE = { width: 290, height: 340 };
+const TW_MINI_LIST = { width: 230, height: 214 };       // the minimized pill with its task list open
+let twMiniList = false;
 const SIZES = {
   avocado: { full: { width: 266, height: 322 }, mini: { width: 96, height: 132 } },
   typewriter: { full: TW_SIZE, mini: { width: 230, height: 50 } },
 };
 const isCollapsed = (name) => !!((store.get().collapsed || {})[name]);
-const sizeFor = (name) => SIZES[name][isCollapsed(name) ? 'mini' : 'full'];
+const sizeFor = (name) => (name === 'typewriter' && twMiniList && isCollapsed(name) ? TW_MINI_LIST : SIZES[name][isCollapsed(name) ? 'mini' : 'full']);
 const widgetWindow = (name) => (name === 'avocado' ? avocado : typewriter);
 
-/** Minimize to / restore from a small icon, keeping the bottom-right corner where it was. */
-function setCollapsed(name, collapsed) {
-  store.update((d) => { d.collapsed = { ...(d.collapsed || {}), [name]: collapsed }; });
+/** Resize a widget to its current size, keeping the bottom-right corner where it was. */
+function applyWidgetSize(name) {
   const win = widgetWindow(name);
   if (!win || win.isDestroyed()) return;
   const b = win.getBounds();
@@ -377,7 +450,22 @@ function setCollapsed(name, collapsed) {
     ({ x, y } = widgetpos.defaultPosition(screen.getPrimaryDisplay(), size));
   }
   win.setBounds({ x, y, width: size.width, height: size.height });
-  win.webContents.send('widget:mode', { collapsed });
+}
+
+/** Minimize to / restore from a small icon, keeping the bottom-right corner where it was. */
+function setCollapsed(name, collapsed) {
+  store.update((d) => { d.collapsed = { ...(d.collapsed || {}), [name]: collapsed }; });
+  if (name === 'typewriter') twMiniList = false;
+  applyWidgetSize(name);
+  const win = widgetWindow(name);
+  if (win && !win.isDestroyed()) win.webContents.send('widget:mode', { collapsed, list: false });
+}
+
+/** Open or close the task list under the minimized typewriter pill. */
+function setMiniList(open) {
+  twMiniList = !!open && isCollapsed('typewriter');
+  applyWidgetSize('typewriter');
+  if (typewriter && !typewriter.isDestroyed()) typewriter.webContents.send('widget:mode', { collapsed: isCollapsed('typewriter'), list: twMiniList });
 }
 
 function setWidgetVisible(name, visible) {
@@ -393,8 +481,9 @@ function twState() {
     endsAt: v.running ? Date.now() + v.remainingMs : null };
   const collapsed = isCollapsed('typewriter');
   const minutes = t ? (rememberedMinutes(t.text) || settings().focusMin) : settings().focusMin;
-  return t ? { state: 'ok', id: t.id, text: t.text, checked: t.checked, timer, collapsed, minutes, remembered: !!(t && rememberedMinutes(t.text)) }
-    : { state: 'none', timer, collapsed, minutes };
+  const tasks = currentTasks().filter((x) => x.isToday).map((x) => ({ id: x.id, text: x.text, checked: !!x.checked }));   // the floating card shows today only
+  return t ? { state: 'ok', id: t.id, text: t.text, checked: t.checked, timer, collapsed, minutes, remembered: !!(t && rememberedMinutes(t.text)), tasks }
+    : { state: 'none', timer, collapsed, minutes, tasks };
 }
 
 const sendTypewriter = () => {
@@ -531,6 +620,23 @@ function recordPlanned() {
   }
 }
 
+/** Delete a task line by id. Refuses while that task is being timed. */
+function removeTaskById(id) {
+  if (typeof id !== 'string') return { ok: false, error: 'Unknown task' };
+  const t = currentTasks().find((x) => x.id === id);
+  if (!t) return { ok: false, error: 'That task no longer exists' };
+  if (pomo.phase === 'focus' && pomo.task && pomo.task.id === id) return { ok: false, error: 'Stop the timer for this task first' };
+  const next = T.removeTask(readTasksMarkdown(), t.lineIndex);
+  if (next === null) return { ok: false, error: 'That task line could not be removed' };
+  try { writeTasksMarkdown(next); } catch (err) { return { ok: false, error: `Could not remove: ${err.message}` }; }
+  store.update((d) => {
+    if (d.currentTaskId === id) d.currentTaskId = null;
+    if (d.taskFirstSeen) { d.taskFirstSeen = { ...d.taskFirstSeen }; delete d.taskFirstSeen[Days.keyOf(id)]; }
+  });
+  broadcastTasks(tasksPayload());
+  return { ok: true };
+}
+
 function tasksPayload() {
   const tasks = currentTasks().map((t) => ({ ...t, lastMinutes: rememberedMinutes(t.text) }));
   return { tasks, markdown: readTasksMarkdown(), done: tasks.filter((t) => t.checked).length, currentTaskId: store.get().currentTaskId || null };
@@ -591,6 +697,8 @@ function registerIpc() {
   }));
 
   ipcMain.handle('tasks:add', (_e, text) => { addTask(String(text || '')); return tasksPayload(); });
+  ipcMain.handle('tasks:remove', (_e, id) => removeTaskById(id));
+  ipcMain.handle('tw:remove', (_e, id) => removeTaskById(id));
   ipcMain.handle('tasks:toggle', (_e, { lineIndex, checked }) => {
     const before = currentTasks().find((t) => t.lineIndex === lineIndex);
     writeTasksMarkdown(T.toggle(readTasksMarkdown(), lineIndex, !!checked, localStamp()));
@@ -627,7 +735,11 @@ function registerIpc() {
       try { writeTasksMarkdown(result.markdown); }
       catch (err) { return { ok: false, code: 'write_failed', error: `Could not save: ${err.message}` }; }
     }
-    store.update((d) => { d.currentTaskId = result.id; });
+    store.update((d) => {
+      d.currentTaskId = result.id;
+      const o = Days.keyOf(input.id), n = Days.keyOf(result.id);       // an edited task keeps its day
+      if (o !== n && d.taskFirstSeen && d.taskFirstSeen[o]) { d.taskFirstSeen = { ...d.taskFirstSeen, [n]: d.taskFirstSeen[o] }; delete d.taskFirstSeen[o]; }
+    });
     recordPlanned();
     broadcastTasks(tasksPayload());
     return { ok: true, id: result.id, text: result.text };
@@ -666,17 +778,31 @@ function registerIpc() {
 
   // --- typewriter card: start / stop the timer for the current task
   ipcMain.handle('tw:start', (_e, input) => {
+    // a specific task (from the card's list) becomes the current one first; ids are checked against the real file
+    if (input && input.id !== undefined) {
+      if (typeof input.id !== 'string' || !currentTasks().some((x) => x.id === input.id)) return { ok: false, error: 'Unknown task' };
+      if (pomo.phase === 'focus') return { ok: false, error: 'A timer is already running' };
+      store.update((d) => { d.currentTaskId = input.id; });
+    }
     const id = store.get().currentTaskId;
     const t = id ? currentTasks().find((x) => x.id === id) : null;
     if (!t) return { ok: false, error: 'No current task' };
     if (t.checked) return { ok: false, error: 'That task is already done' };
     if (pomo.phase === 'focus') return { ok: false, error: 'A timer is already running' };
     startFocus({ id: t.id, text: t.text }, validMinutes(input && input.minutes));
+    if (twMiniList) setMiniList(false);
     if (settings().avocado === false) {                   // started from the card: show the timer
       store.update((d) => { d.settings = { ...d.settings, avocado: true }; });
       setAvocadoVisible(true);
       send('settings:changed', settings());
     }
+    return { ok: true };
+  });
+  ipcMain.handle('tw:miniList', (_e, open) => { if (typeof open === 'boolean') setMiniList(open); return true; });
+  ipcMain.handle('tw:select', (_e, id) => {              // make a task the current one without starting it
+    if (typeof id !== 'string' || !currentTasks().some((x) => x.id === id)) return { ok: false };
+    store.update((d) => { d.currentTaskId = id; });
+    broadcastTasks(tasksPayload());
     return { ok: true };
   });
   ipcMain.handle('tw:stop', () => {
@@ -747,6 +873,7 @@ function registerIpc() {
     if (typeof patch.sound === 'boolean') clean.sound = patch.sound;
     if (typeof patch.avocado === 'boolean') clean.avocado = patch.avocado;
     if (typeof patch.typewriter === 'boolean') clean.typewriter = patch.typewriter;
+    if (typeof patch.nudges === 'boolean') clean.nudges = patch.nudges;
     for (const k of ['focusMin', 'breakMin']) {
       if (Number.isFinite(patch[k])) clean[k] = Math.min(Math.max(Math.round(patch[k]), 1), 120);
     }
@@ -828,6 +955,8 @@ function createTray() {
       click: (item) => { store.update((d) => { d.settings = { ...d.settings, avocado: item.checked }; }); setAvocadoVisible(item.checked); send('settings:changed', settings()); } },
     { label: 'Show typewriter card', type: 'checkbox', checked: settings().typewriter !== false,
       click: (item) => { store.update((d) => { d.settings = { ...d.settings, typewriter: item.checked }; }); setTypewriterVisible(item.checked); send('settings:changed', settings()); } },
+    { label: 'Snooze prompts for 2 hours', click: () => snoozeNudges(2 * 3600000) },
+    { label: 'Snooze prompts until tomorrow', click: () => { const d = new Date(); d.setHours(24, 0, 0, 0); snoozeNudges(d.getTime() - Date.now()); } },
     { label: 'Chat with Lifebot', click: () => { showWindow(); send('navigate', 'chat'); } },
     { label: 'Open dashboard in Obsidian', click: () => { showWindow(); send('navigate', 'dashboard'); } },
     { type: 'separator' },
@@ -868,6 +997,7 @@ app.whenReady().then(async () => {
   refreshGame();
   checkReminders();                                       // catch anything that came due while the app was closed
   setInterval(flushOutbox, 60000);
+  setInterval(runNudgeCheck, 60000);                   // gentle, rate-limited prompts (lib/nudges.js)
   if (SMOKE_DIR) runSmoke(SMOKE_DIR).catch((err) => { console.error('SMOKE FAILED', err); app.exit(2); });
 });
 
@@ -1061,11 +1191,69 @@ async function runSmoke(dir) {
       stored: store.get().collapsed,
     };
     await ashot('11-avocado-mini'); await tshot('12-typewriter-mini');
+    // the minimized pill's drop-down: lists open tasks, can start a particular one
+    await tj("document.getElementById('mini-list-btn').click()");
+    await sleep(700);
+    fl.miniList = { size: [typewriter.getBounds().width, typewriter.getBounds().height], dbg: await tj('(({ miniOpen, miniRows }) => ({ miniOpen, miniRows }))(window.__tw.debug())') };
+    await tshot('12b-typewriter-mini-list');
+    await tj("document.getElementById('mini-list-btn').click()");
+    await sleep(600);
+    fl.miniListClosedSize = [typewriter.getBounds().width, typewriter.getBounds().height];
     await aj("document.getElementById('wc-expand').click()");
     await tj("document.getElementById('wc-expand').click()");
     await sleep(700);
     const a2 = avocado.getBounds(); const t2 = typewriter.getBounds();
     fl.expanded = { avocadoSize: [a2.width, a2.height], typewriterSize: [t2.width, t2.height], stored: store.get().collapsed };
+    // expanded card lists ALL tasks; a row's play button starts that particular task
+    await tshot('12c-typewriter-all-tasks');
+    fl.allTasks = (await tj('window.__tw.debug()')).rows;
+    const fileTasks = currentTasks();
+    const pickRow = fileTasks.find((t) => !t.checked && t.isToday && t.id !== store.get().currentTaskId);
+    if (pickRow) {
+      await tj(`(() => { const r = [...document.querySelectorAll('#tasklist .task-row')].find((x) => x.querySelector('.row-text').title === ${JSON.stringify(pickRow.text)}); r.querySelector('.row-go').click(); })()`);
+      await sleep(1200);
+      fl.startedFromList = { expected: pickRow.text, running: pomo.task && pomo.task.text, phase: pomo.phase, currentIsIt: store.get().currentTaskId === pickRow.id };
+      await tshot('12d-typewriter-running-from-list');
+      applyPomo(P.stop(pomo, Date.now()));
+      await sleep(500);
+    }
+
+    // day handling: an open task from an earlier day hangs in Lifebot but not on the floating card; tasks can be removed
+    const readFile = () => fs.readFileSync(tasksFile(), 'utf8');
+    addTask('Remove me');
+    store.update((d) => { d.taskFirstSeen = { ...d.taskFirstSeen, 'review-nlp-lecture-notes': '2000-01-01' }; });
+    broadcastTasks(tasksPayload());
+    await sleep(800);
+    const cardRows = () => tj("[...document.querySelectorAll('#tasklist .row-text')].map((e) => e.title)");
+    fl.days = {
+      cardRows: await cardRows(),
+      lifebotCarried: await js(`[...document.querySelectorAll('#task-list .task')].map((e) => e.querySelector('.task-text').textContent + (e.querySelector('.task-ts') && /from/.test(e.querySelector('.task-ts').textContent) ? ' [carried]' : ''))`),
+      lifebotHeading: await js(`!!document.querySelector('#task-list .phase.carried')`),
+    };
+    await tshot('12e-typewriter-today-only');
+    await tj(`(() => { const r = [...document.querySelectorAll('#tasklist .task-row')].find((x) => x.querySelector('.row-text').title === 'Remove me'); r.querySelector('.row-del').click(); })()`);
+    await sleep(300);
+    fl.days.afterFirstClick = readFile().includes('Remove me');                       // armed only: still there
+    await tj(`(() => { const r = [...document.querySelectorAll('#tasklist .task-row')].find((x) => x.querySelector('.row-text').title === 'Remove me'); r.querySelector('.row-del').click(); })()`);
+    await sleep(800);
+    fl.days.afterSecondClick = readFile().includes('Remove me');
+    fl.days.cardRowsAfter = await cardRows();
+
+    // proactive nudges: the pure engine fed with this app's real state at 11:00 local (nothing is shown in test mode)
+    store.update((d) => { d.nudgeLog = { sent: [] }; d.nudgeSnoozedUntil = null; });
+    const eleven = new Date(); eleven.setHours(11, 0, 0, 0);
+    const nIn = nudgeInput(eleven.getTime());
+    const decided = Nudges.decide({ ...nIn, pomo: { phase: 'idle', running: false }, lastFocusEndedAt: null });
+    fl.nudge = {
+      openTasks: nIn.tasks.filter((t) => !t.checked).length, carriedSeen: nIn.tasks.filter((t) => t.carried).length,
+      decided, showsNothingInTestMode: runNudgeCheck() === null,
+      silentWhileTimerRuns: Nudges.decide({ ...nIn, pomo: { phase: 'focus', running: true } }) === null,
+      silentWhenOff: Nudges.decide({ ...nIn, settings: { nudges: false } }) === null,
+    };
+    if (decided && decided.action === 'pick') {
+      actOnNudge(decided);
+      fl.nudge.pickMadeCurrent = store.get().currentTaskId === decided.taskId;
+    }
 
     // card -> timer in one step (the current task was picked earlier; make sure it is open)
     const cur = currentTasks().find((t) => t.id === store.get().currentTaskId);

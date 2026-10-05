@@ -12,7 +12,10 @@ contextBridge.exposeInMainWorld('typewriterAPI', {
   update: (input) => ipcRenderer.invoke('tw:update', {
     id: input && input.id, oldText: input && input.oldText, newText: input && input.newText,
   }),
-  start: (minutes) => ipcRenderer.invoke('tw:start', { minutes }),
+  start: (minutes, id) => ipcRenderer.invoke('tw:start', id === undefined ? { minutes } : { minutes, id }),
+  select: (id) => ipcRenderer.invoke('tw:select', id),
+  remove: (id) => ipcRenderer.invoke('tw:remove', id),
+  miniList: (open) => ipcRenderer.invoke('tw:miniList', !!open),
   stop: () => ipcRenderer.invoke('tw:stop'),
   collapse: (collapsed) => ipcRenderer.invoke('widget:collapse', { widget: 'typewriter', collapsed: !!collapsed }),
   hide: () => ipcRenderer.invoke('widget:hide', { widget: 'typewriter' }),

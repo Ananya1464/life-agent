@@ -1,11 +1,11 @@
 @font-face { font-family: "Press Start 2P"; src: url("../assets/fonts/PressStart2P-Regular.ttf") format("truetype"); font-display: block; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 290px; height: 236px; overflow: hidden; background: transparent; }
+html, body { width: 290px; height: 340px; overflow: hidden; background: transparent; }
 body { font-family: "Press Start 2P", Consolas, "Courier New", monospace; -webkit-app-region: drag; user-select: none; }
 
 /* Palette taken from the original typewriter app: paper #F5EDE0, ink #1A1A1A, chassis #C1443C */
-.card { width: 290px; height: 236px; padding: 6px 10px 0; display: flex; flex-direction: column; filter: drop-shadow(0 6px 8px rgba(0,0,0,.28)); }
+.card { width: 290px; height: 340px; padding: 6px 10px 0; display: flex; flex-direction: column; filter: drop-shadow(0 6px 8px rgba(0,0,0,.28)); }
 
 .paper {
   flex: 1; min-height: 0; padding: 10px 12px 8px; background: #F5EDE0; color: #1A1A1A;
@@ -67,6 +67,8 @@ body { font-family: "Press Start 2P", Consolas, "Courier New", monospace; -webki
 
 .mini-pill { display: none; }
 body.mini, body.mini .card { width: 230px; height: 50px; }
+body.mini.list, body.mini.list html { height: 214px; }
+html:has(body.mini.list) { height: 214px; }
 body.mini .card { display: none; }
 body.mini html, html:has(body.mini) { width: 230px; height: 50px; }
 body.mini .mini-pill {
@@ -90,3 +92,35 @@ body.mini .mini-pill {
 
 /* an author display rule must not defeat the hidden attribute */
 .picker[hidden], .error[hidden], .task-editor[hidden], .task-view[hidden] { display: none !important; }
+
+
+/* ---- task list (expanded card and the minimized pill's drop-down) ---- */
+.task-view { flex: 0 0 auto; max-height: 74px; }
+.task-editor { flex: 0 0 auto; height: 74px; }
+.list-head { font-size: 6px; color: #7A6F65; letter-spacing: .04em; display: flex; justify-content: space-between; border-top: 2px dashed #C9B9A3; padding-top: 4px; }
+.tasklist { -webkit-app-region: no-drag; list-style: none; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.task-row { display: flex; align-items: center; gap: 4px; }
+.task-row .row-text {
+  -webkit-app-region: no-drag; flex: 1; min-width: 0; text-align: left; cursor: pointer; padding: 3px 4px;
+  font: 7px/1.5 "Press Start 2P", Consolas, monospace; color: #1A1A1A; background: transparent;
+  border: 2px solid transparent; border-radius: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.task-row .row-text:hover { border-color: #C9B9A3; }
+.task-row.current .row-text { background: #fff98a; border-color: #1A1A1A; }
+.task-row.checked .row-text { color: #8C7B6B; text-decoration: line-through; }
+.task-row .row-go { padding: 3px 5px; font-size: 7px; flex: none; }
+.task-row .row-run { font-size: 7px; color: #9c342d; flex: none; }
+.list-empty { font-size: 7px; color: #8C7B6B; padding: 4px; }
+
+.mini-tasklist {
+  display: none; width: 230px; height: 158px; margin-top: 4px; padding: 6px; background: #F5EDE0;
+  border: 3px solid #1A1A1A; box-shadow: 0 3px 0 rgba(0,0,0,.25);
+}
+body.mini.list .mini-tasklist { display: flex; }
+body.mini.list .mini-tasklist[hidden] { display: flex; }
+
+.task-row .row-del {
+  -webkit-app-region: no-drag; flex: none; width: 18px; height: 18px; padding: 0; cursor: pointer; font: 700 9px/1 Consolas, monospace;
+  color: #9c342d; background: #fffaf0; border: 2px solid #1A1A1A; border-radius: 0; box-shadow: 1px 1px 0 #1A1A1A;
+}
+.task-row .row-del:hover, .task-row .row-del.armed { background: #f3c9c4; }

@@ -118,14 +118,16 @@
   function renderTasks() {
     const list = $('task-list');
     list.replaceChildren();
-    const tasks = state.tasks;
-    $('tasks-summary').textContent = tasks.length ? `${tasks.filter((t) => t.checked).length}/${tasks.length} done` : '';
+    // today's tasks, then open tasks still hanging from earlier days (older finished ones are hidden)
+    const tasks = state.tasks.filter((t) => t.isToday !== false);
+    const carried = state.tasks.filter((t) => t.carried);
+    $('tasks-summary').textContent = tasks.length ? `${tasks.filter((t) => t.checked).length}/${tasks.length} done today${carried.length ? ` · ${carried.length} carried over` : ''}` : (carried.length ? `${carried.length} carried over` : '');
     $('tasks-progress').style.width = tasks.length ? `${(100 * tasks.filter((t) => t.checked).length) / tasks.length}%` : '0';
-    setBadge('tasks-badge', tasks.filter((t) => !t.checked).length);
-    if (!tasks.length) { list.append(h('div', { class: 'empty', text: 'No tasks yet. Type one above and press Enter.' })); }
+    setBadge('tasks-badge', tasks.filter((t) => !t.checked).length + carried.length);
+    if (!tasks.length && !carried.length) { list.append(h('div', { class: 'empty', text: 'No tasks yet. Type one above and press Enter.' })); }
     let phase = null;
-    for (const t of tasks) {
-      if (t.phase && t.phase !== phase) { phase = t.phase; list.append(h('div', { class: 'phase', text: phase })); }
+    const addRow = (t) => {
+      if (t.phase && t.phase !== phase && !t.carried) { phase = t.phase; list.append(h('div', { class: 'phase', text: phase })); }
       const box = h('button', {
         class: 'box', type: 'button', 'aria-label': t.checked ? 'Mark not done' : 'Mark done',
         onclick: () => { Sfx.play(t.checked ? 'click' : 'done'); api.tasks.toggle({ lineIndex: t.lineIndex, checked: !t.checked }); },
@@ -139,11 +141,35 @@
       const row = h('div', { class: `task${t.checked ? ' done' : ''}${isCurrent ? ' current' : ''}` }, box, pick,
         h('span', { class: 'task-text', text: t.text }),
         t.checked && t.doneTimestamp ? h('span', { class: 'task-ts', text: t.doneTimestamp.replace('T', ' ') }) : null,
-        t.checked ? null : h('button', { class: 'start', type: 'button', text: '▶ Start', onclick: () => startTask(t) }));
+        t.carried ? h('span', { class: 'task-ts', text: `from ${t.date}` }) : null,
+        t.checked ? null : h('button', { class: 'start', type: 'button', text: '▶ Start', onclick: () => startTask(t) }),
+        removeButton(t));
       list.append(row);
+    };
+    tasks.forEach(addRow);
+    if (carried.length) {
+      list.append(h('div', { class: 'phase carried', text: 'Carried over from earlier days (not completed)' }));
+      carried.forEach(addRow);
     }
     renderFocusSelect();
     if (document.activeElement !== $('md-editor')) $('md-editor').value = state.markdown;
+  }
+
+  /** Two-step delete: the first click arms it, the second (within 3s) removes the task from the file. */
+  function removeButton(t) {
+    const b = h('button', { class: 'remove', type: 'button', title: 'Remove this task', 'aria-label': `Remove ${t.text}`, text: '✕' });
+    let armed = null;
+    b.addEventListener('click', async () => {
+      if (!armed) {
+        b.textContent = 'SURE?'; b.classList.add('armed');
+        armed = setTimeout(() => { armed = null; b.textContent = '✕'; b.classList.remove('armed'); }, 3000);
+        return;
+      }
+      clearTimeout(armed); armed = null;
+      const res = await api.tasks.remove(t.id);
+      if (res && res.ok === false) { toast(res.error || 'Could not remove'); b.textContent = '✕'; b.classList.remove('armed'); }
+    });
+    return b;
   }
 
   function startTask(t) {
@@ -331,6 +357,7 @@
   function renderSettings() {
     const s = state.settings;
     $('set-notifications').checked = !!s.notifications;
+    $('set-nudges').checked = s.nudges !== false;
     $('set-login').checked = !!s.openAtLogin;
     $('set-avocado').checked = s.avocado !== false;
     $('set-typewriter').checked = s.typewriter !== false;
@@ -338,6 +365,7 @@
     $('cfg-focus').value = s.focusMin;
     $('cfg-break').value = s.breakMin;
   }
+  $('set-nudges').addEventListener('change', async (e) => { state.settings = await api.settings.set({ nudges: e.target.checked }); });
   $('set-notifications').addEventListener('change', async (e) => { state.settings = await api.settings.set({ notifications: e.target.checked }); });
   $('set-typewriter').addEventListener('change', async (e) => { state.settings = await api.settings.set({ typewriter: e.target.checked }); });
   $('set-avocado').addEventListener('change', async (e) => { state.settings = await api.settings.set({ avocado: e.target.checked }); });

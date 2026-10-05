@@ -6,6 +6,8 @@
   const view = $('view'), editor = $('editor'), errorEl = $('error'), statusEl = $('status'), hint = $('hint');
   const startBtn = $('start'), miniText = $('mini-text');
   const MAX = 200;
+  const listEl = $('tasklist'), miniListEl = $('mini-tasklist'), miniListBtn = $('mini-list-btn'), listCount = $('list-count');
+  let miniOpen = false;
 
   let task = { state: 'none' };
   let editing = false;
@@ -56,11 +58,83 @@
 
   function renderMini() {
     const tm = timerFor();
-    const name = task.state === 'ok' ? task.text : 'No task';
-    miniText.textContent = tm.kind === 'mine' ? `${remainingText()}  ${name}` : name;
+    // collapsed: show what is RUNNING (even if another task is selected), else the current task
+    const runningRow = tm.kind !== 'idle' && Array.isArray(task.tasks) ? task.tasks.find((r) => r.id === tm.t.taskId) : null;
+    const name = runningRow ? runningRow.text : (task.state === 'ok' ? task.text : 'No task');
+    miniText.textContent = tm.kind !== 'idle' ? `${remainingText()}  ${name}` : name;
+  }
+
+  /** One row per task in the file: click the text to make it current, the play button to start it. */
+  function renderRows(ul, rows) {
+    ul.textContent = '';
+    if (!rows.length) {
+      const li = document.createElement('li');
+      li.className = 'list-empty';
+      li.textContent = 'No tasks yet. Add one in Lifebot.';
+      ul.appendChild(li);
+      return;
+    }
+    const running = task.timer && task.timer.phase === 'focus' ? task.timer.taskId : null;
+    rows.forEach((r) => {
+      const li = document.createElement('li');
+      li.className = 'task-row' + (r.id === task.id ? ' current' : '') + (r.checked ? ' checked' : '');
+      const text = document.createElement('button');
+      text.type = 'button';
+      text.className = 'row-text';
+      text.textContent = (r.checked ? '✓ ' : '') + r.text;
+      text.title = r.text;
+      text.addEventListener('click', () => { api.select(r.id); });
+      li.appendChild(text);
+      if (running === r.id) {
+        const run = document.createElement('span');
+        run.className = 'row-run';
+        run.textContent = '● ' + remainingText();
+        li.appendChild(run);
+      } else if (!r.checked) {
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'start-btn row-go';
+        go.textContent = '▶';
+        go.title = 'Start ' + r.text;
+        go.setAttribute('aria-label', 'Start ' + r.text);
+        go.disabled = !!running;                                  // one timer at a time
+        go.addEventListener('click', async () => {
+          const res = await api.start(undefined, r.id);
+          if (res && res.ok === false) { showError(res.error || 'Could not start'); setStatus('NOT STARTED', true); }
+        });
+        li.appendChild(go);
+      }
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'row-del';
+      del.textContent = '✕';
+      del.title = 'Remove this task';
+      del.setAttribute('aria-label', 'Remove ' + r.text);
+      let armed = null;                                           // two steps: arm, then confirm within 3s
+      del.addEventListener('click', async () => {
+        if (!armed) {
+          del.textContent = '?'; del.classList.add('armed');
+          armed = setTimeout(() => { armed = null; del.textContent = '✕'; del.classList.remove('armed'); }, 3000);
+          return;
+        }
+        clearTimeout(armed); armed = null;
+        const res = await api.remove(r.id);
+        if (res && res.ok === false) { showError(res.error || 'Could not remove'); setStatus('NOT REMOVED', true); del.textContent = '✕'; del.classList.remove('armed'); }
+      });
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+
+  function renderLists() {
+    const rows = Array.isArray(task.tasks) ? task.tasks : [];
+    listCount.textContent = rows.length ? `${rows.filter((r) => !r.checked).length}/${rows.length} OPEN` : '';
+    renderRows(listEl, rows);
+    if (miniOpen) renderRows(miniListEl, rows.filter((r) => !r.checked));
   }
 
   function render() {
+    renderLists();
     view.classList.toggle('none', task.state !== 'ok');
     view.classList.toggle('done', task.state === 'ok' && !!task.checked);
     if (task.state === 'ok') {
@@ -80,7 +154,7 @@
     clearInterval(tick);
     tick = null;
     if (task.timer && task.timer.running && task.timer.endsAt) {
-      tick = setInterval(() => { renderStart(); renderMini(); }, 1000);
+      tick = setInterval(() => { renderStart(); renderMini(); renderLists(); }, 1000);
     }
   }
 
@@ -177,10 +251,18 @@
   $('wc-home').addEventListener('click', () => api.openApp());
 
   const setMini = (on) => document.body.classList.toggle('mini', !!on);
-  api.onMode((m) => setMini(m.collapsed));
+  function setMiniOpen(on) {
+    miniOpen = !!on;
+    document.body.classList.toggle('list', miniOpen);
+    miniListEl.hidden = !miniOpen;
+    miniListBtn.setAttribute('aria-expanded', String(miniOpen));
+    if (miniOpen) renderLists();
+  }
+  miniListBtn.addEventListener('click', () => api.miniList(!miniOpen));
+  api.onMode((m) => { setMini(m.collapsed); setMiniOpen(!!m.collapsed && !!m.list); });
 
   api.onChange((next) => {
-    if (typeof next.collapsed === 'boolean') setMini(next.collapsed);
+    if (typeof next.collapsed === 'boolean') { setMini(next.collapsed); if (!next.collapsed) setMiniOpen(false); }
     if (editing && next.state === 'ok' && next.text !== baseText) {
       showError('This task changed in Lifebot. Esc reloads it; saving will be refused if it differs.');
       setStatus('CHANGED', true);
@@ -191,8 +273,12 @@
   });
 
   api.get().then((s) => { task = s; setMini(!!s.collapsed); render(); });
+  // a task started from the pill's list closes it (main resizes the window back)
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && miniOpen && !editing) api.miniList(false); });
   window.__tw = {
     debug: () => ({ editing, task, pickerOpen: !$('picker').hidden, pickerValue: $('picker-min').value, pickerNote: $('picker-note').textContent, status: statusEl.textContent, error: errorEl.hidden ? '' : errorEl.textContent,
-      mini: document.body.classList.contains('mini'), startLabel: startBtn.textContent, startDisabled: startBtn.disabled, miniText: miniText.textContent }),
+      mini: document.body.classList.contains('mini'), startLabel: startBtn.textContent, startDisabled: startBtn.disabled, miniText: miniText.textContent,
+      rows: [...listEl.querySelectorAll('.task-row')].map((r) => ({ text: r.querySelector('.row-text').textContent, current: r.classList.contains('current'), canStart: !!r.querySelector('.row-go') && !r.querySelector('.row-go').disabled, running: !!r.querySelector('.row-run') })),
+      miniOpen, miniRows: miniListEl.querySelectorAll('.task-row').length }),
   };
 }());

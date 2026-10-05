@@ -26,6 +26,8 @@
         <span id="status" class="status" role="status" aria-live="polite"></span>
       </div>
       <div id="hint" class="hint"></div>
+      <div class="list-head">TODAY'S TASKS <span id="list-count"></span></div>
+      <ul id="tasklist" class="tasklist" aria-label="All tasks"></ul>
       <div id="picker" class="picker" hidden>
         <div class="picker-row">
           <button class="chip" type="button" data-m="15">15</button>
@@ -49,8 +51,10 @@
   <div class="mini-pill" id="mini">
     <span class="mini-key" aria-hidden="true"></span>
     <span class="mini-text" id="mini-text">No task</span>
+    <button class="wc-btn" id="mini-list-btn" title="Pick a task to start" aria-label="Pick a task to start" aria-expanded="false">&#9660;</button>
     <button class="wc-btn" id="wc-expand" title="Expand" aria-label="Expand the typewriter card">&#9633;</button>
   </div>
+  <ul id="mini-tasklist" class="tasklist mini-tasklist" aria-label="Start a task" hidden></ul>
   <script src="typewriter.js"></script>
 </body>
 </html>

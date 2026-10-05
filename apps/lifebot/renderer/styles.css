@@ -201,3 +201,11 @@ input[type=checkbox] { accent-color: var(--green-d); width: 16px; height: 16px; 
 .modal-title { font-size: 10px; color: var(--red); line-height: 1.7; }
 .modal-task { font-size: 10px; line-height: 1.8; overflow-wrap: anywhere; padding: 8px 10px; background: var(--flesh); border: 3px solid var(--ink); }
 .chip.on { background: var(--green); }
+
+/* ---- carried-over tasks and remove button ---- */
+.phase.carried { color: var(--ink); background: var(--flesh); border: 2px dashed var(--ink); padding: 4px 8px; }
+.task .remove {
+  flex: none; cursor: pointer; padding: 4px 6px; font: 8px "Press Start 2P", Consolas, monospace; color: #9c342d;
+  background: var(--card); border: 2px solid var(--ink); border-radius: 0; box-shadow: 2px 2px 0 var(--ink);
+}
+.task .remove:hover, .task .remove.armed { background: #f3c9c4; }

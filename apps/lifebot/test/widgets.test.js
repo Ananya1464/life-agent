@@ -9,7 +9,7 @@ const main = read('main.js');
 test('widget preloads expose only narrow APIs and no Node primitives', () => {
   const tw = read('typewriter-preload.js');
   const av = read('avocado-preload.js');
-  assert.deepEqual([...tw.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]).sort(), ['collapse', 'get', 'hide', 'onChange', 'onMode', 'openApp', 'start', 'stop', 'update']);
+  assert.deepEqual([...tw.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]).sort(), ['collapse', 'get', 'hide', 'miniList', 'onChange', 'onMode', 'openApp', 'remove', 'select', 'start', 'stop', 'update']);
   assert.deepEqual([...av.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]).sort(),
     ['abandon', 'ack', 'adjust', 'alarmAttention', 'collapse', 'getState', 'hide', 'managed', 'onCelebrate', 'onMode', 'onState', 'openApp', 'start']);
   for (const src of [tw, av]) {
@@ -78,4 +78,35 @@ test('smoke/test mode can never touch real personal data (profile, tasks file, d
   // the tasks file is resolved only through tasksFile(), whose env override wins over the stored real path
   assert.match(main, /tasksFile = \(\) => process\.env\.LIFEBOT_TASKS_FILE \|\|/);
   assert.ok(!/ANANYA-OS/.test(main), 'no real vault path may be hard-coded in main.js');
+});
+
+test('typewriter card lists every task, starts a particular one, and the pill has a start list', () => {
+  const tw = read('renderer/typewriter.js');
+  assert.match(main, /const tasks = currentTasks\(\)\.filter\(\(x\) => x\.isToday\)\.map\(\(x\) => \(\{ id: x\.id, text: x\.text, checked: !!x\.checked \}\)\)/);   // state carries today's tasks
+  assert.match(main, /ipcMain\.handle\('tw:start'[\s\S]{0,500}typeof input\.id !== 'string' \|\| !currentTasks\(\)\.some/);        // id validated against the file
+  assert.match(main, /ipcMain\.handle\('tw:select'[\s\S]{0,200}typeof id !== 'string'/);
+  assert.match(main, /ipcMain\.handle\('tw:miniList', \(_e, open\) => \{ if \(typeof open === 'boolean'\)/);
+  assert.match(tw, /api\.start\(undefined, r\.id\)/);
+  assert.match(tw, /tm\.t\.taskId/);                                  // the collapsed pill shows the RUNNING task
+});
+
+test('floating card lists today only and can remove tasks; removal is validated and refuses a running task', () => {
+  assert.match(main, /currentTasks\(\)\.filter\(\(x\) => x\.isToday\)/);
+  assert.match(main, /ipcMain\.handle\('tw:remove', \(_e, id\) => removeTaskById\(id\)\)/);
+  assert.match(main, /ipcMain\.handle\('tasks:remove', \(_e, id\) => removeTaskById\(id\)\)/);
+  const fn = main.slice(main.indexOf('function removeTaskById'), main.indexOf('function tasksPayload'));
+  assert.match(fn, /typeof id !== 'string'/);
+  assert.match(fn, /pomo\.phase === 'focus'/);
+  assert.match(fn, /T\.removeTask\(/);
+});
+
+test('proactive nudges are wired to the pure engine, respect settings, never run in test mode and only act in-app', () => {
+  assert.match(main, /const Nudges = require\('\.\/lib\/nudges\.js'\)/);
+  assert.match(main, /nudges: true, focusMin/);                                  // on by default
+  assert.match(main, /typeof patch\.nudges === 'boolean'/);                      // validated setting
+  assert.match(main, /function runNudgeCheck[\s\S]{0,120}SMOKE_DIR/);              // never pops up in smoke tests
+  assert.match(main, /setInterval\(runNudgeCheck, 60000\)/);
+  assert.match(main, /Snooze prompts for 2 hours/);
+  const act = main.slice(main.indexOf('function actOnNudge'), main.indexOf('function showNudge'));
+  assert.ok(!/writeTasksMarkdown|removeTaskById|child_process|shell\./.test(act), 'a click may only start/select/navigate');
 });
