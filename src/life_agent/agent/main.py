@@ -26,7 +26,11 @@ def run(task: str):
     event_model.record_task_started(task, date_iso=dates.today().isoformat())
     try:
         mod = importlib.import_module(f"life_agent.agent.tasks.{task}")
-        outbound.send_task_start_notification(task)
+        try:
+            outbound.send_task_start_notification(task)
+        except Exception as notice_error:
+            # A missing push/email channel must never stop the task itself: outputs go to Notion, Obsidian and Lifebot.
+            print(f"[notify] task-start notice not sent ({notice_error}); continuing with {task}")
         mod.run()
         event_model.record_task_completed(task, date_iso=dates.today().isoformat())
         metrics.update_metrics()
