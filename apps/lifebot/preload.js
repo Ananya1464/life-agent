@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('lifebot', {
     snooze: invoke('reminders:snooze'), testPush: invoke('reminders:testPush'),
   },
   settings: { set: invoke('settings:set') },
+  briefs: { list: invoke('briefs:list'), run: invoke('briefs:run'), read: invoke('briefs:read') },
   chat: { send: invoke('chat:send'), clear: invoke('chat:clear') },
   dashboard: { open: invoke('dashboard:open') },
   sync: { now: invoke('sync:now') },
@@ -26,6 +27,6 @@ contextBridge.exposeInMainWorld('lifebot', {
   on: {
     pomodoro: on('pomodoro:state'), tasks: on('tasks:changed'), reminders: on('reminders:changed'),
     reminderFired: on('reminder:fired'), bridge: on('bridge:status'), navigate: on('navigate'),
-    toast: on('toast'), settings: on('settings:changed'), game: on('game'), reward: on('reward'),
+    briefs: on('briefs:changed'), toast: on('toast'), settings: on('settings:changed'), game: on('game'), reward: on('reward'),
   },
 });

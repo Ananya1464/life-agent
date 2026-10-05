@@ -102,11 +102,24 @@ test('floating card lists today only and can remove tasks; removal is validated 
 
 test('proactive nudges are wired to the pure engine, respect settings, never run in test mode and only act in-app', () => {
   assert.match(main, /const Nudges = require\('\.\/lib\/nudges\.js'\)/);
-  assert.match(main, /nudges: true, focusMin/);                                  // on by default
+  assert.match(main, /nudges: true, briefings: true, focusMin/);                                  // on by default
   assert.match(main, /typeof patch\.nudges === 'boolean'/);                      // validated setting
   assert.match(main, /function runNudgeCheck[\s\S]{0,120}SMOKE_DIR/);              // never pops up in smoke tests
   assert.match(main, /setInterval\(runNudgeCheck, 60000\)/);
   assert.match(main, /Snooze prompts for 2 hours/);
   const act = main.slice(main.indexOf('function actOnNudge'), main.indexOf('function showNudge'));
   assert.ok(!/writeTasksMarkdown|removeTaskById|child_process|shell\./.test(act), 'a click may only start/select/navigate');
+});
+
+test('briefings: Lifebot runs only the fixed task list, never in test mode, with a timeout and no shell', () => {
+  assert.match(main, /const Schedule = require\('\.\/lib\/schedule\.js'\)/);
+  assert.match(main, /function checkBriefs\(\) \{\s*if \(!store \|\| SMOKE_DIR \|\| briefRunning \|\| settings\(\)\.briefings === false\) return;/);
+  const run = main.slice(main.indexOf('function runBrief'), main.indexOf('/** Called every minute'));
+  assert.match(run, /!Schedule\.TASKS\.includes\(task\)/);                           // allowlist
+  assert.match(run, /\['-m', 'life_agent\.agent\.main', task\]/);                    // fixed argv
+  assert.ok(!/shell:\s*true|exec\(|execSync/.test(run), 'no shell');
+  assert.match(run, /BRIEF_TIMEOUT_MS/);
+  assert.match(main, /ipcMain\.handle\('briefs:run'[\s\S]{0,200}!Schedule\.TASKS\.includes\(task\)/);
+  assert.match(main, /ipcMain\.handle\('briefs:read'[\s\S]{0,200}!Schedule\.TASKS\.includes\(task\)/);
+  assert.match(main, /typeof patch\.briefings === 'boolean'/);
 });

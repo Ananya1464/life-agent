@@ -26,6 +26,7 @@
       <button class="nav" data-tab="tasks"><span class="ico">&#9998;</span>Typewriter<span class="badge" id="tasks-badge"></span></button>
       <button class="nav" data-tab="focus"><span class="ico">&#9201;</span>Focus<span class="badge" id="focus-badge"></span></button>
       <button class="nav" data-tab="reminders"><span class="ico">&#128276;</span>Reminders<span class="badge" id="rem-badge"></span></button>
+      <button class="nav" data-tab="briefings"><span class="ico">&#128220;</span>Briefings<span class="badge" id="brief-badge"></span></button>
       <div class="spacer"></div>
       <button class="side-action" id="open-dashboard">&#128202; Open dashboard</button>
       <div class="status"><span class="dot" id="bridge-dot"></span><span id="bridge-text">Starting agent...</span></div>
@@ -94,6 +95,13 @@
       </section>
 
       <!-- REMINDERS -->
+      <!-- BRIEFINGS: the agent's scheduled work, run by Lifebot itself -->
+      <section class="view" id="view-briefings">
+        <header class="view-head"><h1>Briefings</h1><div class="head-right"><span class="muted" id="brief-summary"></span></div></header>
+        <div class="muted brief-intro">Lifebot runs these for you at the times shown (and catches up if the PC was off). Notes are saved in your Obsidian vault under Briefings.</div>
+        <div class="brief-list" id="brief-list"></div>
+      </section>
+
       <section class="view" id="view-reminders">
         <header class="view-head"><h1>Reminders</h1></header>
         <form class="card rem-form" id="rem-form">
@@ -116,6 +124,7 @@
         <div class="card settings">
           <h2>Notifications and startup</h2>
           <label class="check"><input type="checkbox" id="set-notifications"> Windows desktop notifications</label>
+          <label class="check"><input type="checkbox" id="set-briefings"> Run the daily briefings automatically (opportunities, meals, plans, weekly career prep)</label>
           <label class="check"><input type="checkbox" id="set-nudges"> Gentle prompts: nudge me to pick one task, start small, sort old tasks and wrap up (max 5 a day, quiet 22:00 to 08:00; snooze from the tray icon)</label>
           <label class="check"><input type="checkbox" id="set-typewriter"> Show the floating typewriter card (current task, always on top)</label>
           <label class="check"><input type="checkbox" id="set-avocado"> Show the floating avocado timer (always on top)</label>

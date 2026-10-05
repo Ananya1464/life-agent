@@ -209,3 +209,18 @@ input[type=checkbox] { accent-color: var(--green-d); width: 16px; height: 16px; 
   background: var(--card); border: 2px solid var(--ink); border-radius: 0; box-shadow: 2px 2px 0 var(--ink);
 }
 .task .remove:hover, .task .remove.armed { background: #f3c9c4; }
+
+/* ---- briefings ---- */
+.brief-intro { margin-bottom: 12px; font-size: 9px; line-height: 1.8; }
+.brief-list { display: flex; flex-direction: column; gap: 10px; }
+.brief { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.brief-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brief-title { flex: 1; min-width: 160px; font-size: 10px; line-height: 1.7; }
+.brief-status { font-size: 8px; padding: 3px 6px; border: 2px solid var(--ink); background: var(--card); }
+.brief-status.ok { background: #a9e23d; }
+.brief-status.failed { background: #f3c9c4; }
+.brief-status.running { background: #fff98a; }
+.brief-meta { font-size: 8px; line-height: 1.7; overflow-wrap: anywhere; }
+.brief-meta.err { color: #9c342d; }
+.brief-note { margin: 0; padding: 10px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 Consolas, "Courier New", monospace; background: var(--card); border: 2px dashed var(--ink); user-select: text; }
+.brief-note[hidden] { display: none; }

@@ -7,6 +7,7 @@
  */
 const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage, shell, screen } = require('electron');
 const fs = require('node:fs');
+const { spawn } = require('node:child_process');
 const path = require('node:path');
 
 const { PyBridge } = require('./lib/pybridge.js');
@@ -16,6 +17,7 @@ const P = require('./lib/pomodoro.js');
 const T = require('./lib/tasks.js');
 const Days = require('./lib/taskdays.js');
 const Nudges = require('./lib/nudges.js');
+const Schedule = require('./lib/schedule.js');
 const ntfy = require('./lib/ntfy.js');
 const widgetpos = require('./lib/widgetpos.js');
 const taskedit = require('./lib/taskedit.js');
@@ -24,7 +26,7 @@ const { createStore } = require('./lib/store.js');
 const APP_ID = 'com.ananya.lifebot';
 const HIDDEN_START = process.argv.includes('--hidden');
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
-const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, avocado: true, typewriter: true, nudges: true, focusMin: 25, breakMin: 5 };
+const DEFAULT_SETTINGS = { ntfyTopic: '', openAtLogin: true, notifications: true, sound: true, avocado: true, typewriter: true, nudges: true, briefings: true, focusMin: 25, breakMin: 5 };
 const OUTBOX_MAX = 500;
 
 let win = null;
@@ -287,6 +289,68 @@ function runNudgeCheck(now = Date.now()) {
   try { nudge = Nudges.decide(nudgeInput(now)); } catch (err) { console.error('nudge check failed:', err); }
   if (nudge) showNudge(nudge, now);
   return nudge;
+}
+
+// ------------------------------------------------------------------ scheduled briefings (Lifebot runs the agent's tasks itself)
+const BRIEF_TIMEOUT_MS = 15 * 60000;
+let briefRunning = null;                                      // name of the task being run, or null
+const briefsDir = () => process.env.LIFE_AGENT_BRIEFS_DIR || store.get().briefsDir || path.join(path.dirname(tasksFile()), 'Briefings');
+
+function briefNoteFor(task) {
+  try {
+    const names = fs.readdirSync(briefsDir()).filter((n) => n.endsWith(` ${task}.md`)).sort();
+    return names.length ? names[names.length - 1] : null;
+  } catch (_) { return null; }
+}
+
+function briefsPayload() {
+  const runs = store.get().briefRuns || {};
+  return Schedule.SCHEDULE.map((s) => {
+    const r = runs[s.task] || {};
+    return { task: s.task, label: s.label, time: s.time, weekly: s.day !== undefined, status: briefRunning === s.task ? 'running' : (r.status === 'running' ? 'failed' : (r.status || 'none')),
+      day: r.day || null, at: r.at || null, error: r.error || '', note: briefNoteFor(s.task) };
+  });
+}
+
+function broadcastBriefs() { send('briefs:changed', briefsPayload()); }
+
+/** Run one fixed task as `python -m life_agent.agent.main <task>`; never anything the renderer typed. */
+function runBrief(task) {
+  if (!Schedule.TASKS.includes(task) || briefRunning || !pythonInfo || !repoRoot) return false;
+  const now = Date.now();
+  briefRunning = task;
+  store.update((d) => { d.briefRuns = Schedule.started(d.briefRuns || {}, task, now, new Date(now).getTimezoneOffset()); });
+  broadcastBriefs();
+  let out = '';
+  let child;
+  const done = (ok, error) => {
+    if (briefRunning !== task) return;
+    briefRunning = null;
+    store.update((d) => { d.briefRuns = Schedule.finished(d.briefRuns || {}, task, ok, Date.now(), error); });
+    broadcastBriefs();
+    if (ok) notify('Briefing ready', (Schedule.SCHEDULE.find((s) => s.task === task) || {}).label || task, 'briefings');
+  };
+  try {
+    child = spawn(pythonInfo.python, ['-m', 'life_agent.agent.main', task], {
+      cwd: repoRoot, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8', LLM_MAX_RETRIES: '1', LIFE_AGENT_BRIEFS_DIR: briefsDir() },
+    });
+  } catch (err) { done(false, err.message); return false; }
+  const keep = (b) => { out = (out + b.toString('utf8')).slice(-1500); };
+  child.stdout.on('data', keep);
+  child.stderr.on('data', keep);
+  const timer = setTimeout(() => { try { child.kill(); } catch (_) { /* already gone */ } done(false, 'Timed out after 15 minutes'); }, BRIEF_TIMEOUT_MS);
+  child.on('error', (err) => { clearTimeout(timer); done(false, err.message); });
+  child.on('close', (code) => { clearTimeout(timer); done(code === 0, code === 0 ? '' : (out.trim().split(/\r?\n/).filter(Boolean).pop() || `Exited with code ${code}`)); });
+  return true;
+}
+
+/** Called every minute: run the earliest due task if nothing else is running. Never in test mode. */
+function checkBriefs() {
+  if (!store || SMOKE_DIR || briefRunning || settings().briefings === false) return;
+  const now = Date.now();
+  const next = Schedule.due({ now, tzOffsetMin: new Date(now).getTimezoneOffset(), runs: store.get().briefRuns || {}, running: briefRunning })[0];
+  if (next) runBrief(next.task);
 }
 
 function snoozeNudges(ms) {
@@ -874,6 +938,7 @@ function registerIpc() {
     if (typeof patch.avocado === 'boolean') clean.avocado = patch.avocado;
     if (typeof patch.typewriter === 'boolean') clean.typewriter = patch.typewriter;
     if (typeof patch.nudges === 'boolean') clean.nudges = patch.nudges;
+    if (typeof patch.briefings === 'boolean') clean.briefings = patch.briefings;
     for (const k of ['focusMin', 'breakMin']) {
       if (Number.isFinite(patch[k])) clean[k] = Math.min(Math.max(Math.round(patch[k]), 1), 120);
     }
@@ -894,6 +959,20 @@ function registerIpc() {
   });
   ipcMain.handle('chat:clear', () => { store.update((d) => { d.chat = []; }); return []; });
 
+  ipcMain.handle('briefs:list', () => briefsPayload());
+  ipcMain.handle('briefs:run', (_e, task) => {
+    if (typeof task !== 'string' || !Schedule.TASKS.includes(task)) return { ok: false, error: 'Unknown briefing' };
+    if (briefRunning) return { ok: false, error: `Already running: ${briefRunning}` };
+    if (!pythonInfo) return { ok: false, error: 'The agent (Python) is not available' };
+    return { ok: runBrief(task) };
+  });
+  ipcMain.handle('briefs:read', (_e, task) => {
+    if (typeof task !== 'string' || !Schedule.TASKS.includes(task)) return { ok: false, error: 'Unknown briefing' };
+    const name = briefNoteFor(task);
+    if (!name) return { ok: false, error: 'No note yet. Run it first.' };
+    try { return { ok: true, name, text: fs.readFileSync(path.join(briefsDir(), name), 'utf8').slice(0, 60000) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+  });
   ipcMain.handle('dashboard:open', async () => {
     if (!bridge) return { ok: false, error: 'The Python agent is not available' };
     try {
@@ -997,7 +1076,9 @@ app.whenReady().then(async () => {
   refreshGame();
   checkReminders();                                       // catch anything that came due while the app was closed
   setInterval(flushOutbox, 60000);
-  setInterval(runNudgeCheck, 60000);                   // gentle, rate-limited prompts (lib/nudges.js)
+  setInterval(runNudgeCheck, 60000);
+  setTimeout(checkBriefs, 45000);                      // catch up on briefings missed while the PC was off
+  setInterval(checkBriefs, 60000);                   // gentle, rate-limited prompts (lib/nudges.js)
   if (SMOKE_DIR) runSmoke(SMOKE_DIR).catch((err) => { console.error('SMOKE FAILED', err); app.exit(2); });
 });
 
@@ -1250,6 +1331,25 @@ async function runSmoke(dir) {
       silentWhileTimerRuns: Nudges.decide({ ...nIn, pomo: { phase: 'focus', running: true } }) === null,
       silentWhenOff: Nudges.decide({ ...nIn, settings: { nudges: false } }) === null,
     };
+    // briefings tab: lists every scheduled task, shows a saved note, refuses anything not on the fixed schedule
+    fs.mkdirSync(briefsDir(), { recursive: true });
+    fs.writeFileSync(path.join(briefsDir(), '2026-10-05 ai_edge.md'), '# AI Edge\n\n1. Test opportunity https://example.org\n');
+    broadcastBriefs();
+    await js(`document.querySelector('[data-tab="briefings"]').click()`);
+    await sleep(600);
+    fl.briefings = {
+      cards: await js(`document.querySelectorAll('#brief-list .brief').length`),
+      scheduleSize: Schedule.SCHEDULE.length,
+      evilRefused: await js(`window.lifebot.briefs.run('meal_plan; calc.exe')`),
+      unknownRead: await js(`window.lifebot.briefs.read('../../secrets')`),
+      noteRead: (await js(`window.lifebot.briefs.read('ai_edge')`)).text,
+      viewEnabledOnlyWithNote: await js(`[...document.querySelectorAll('#brief-list .brief')].map((c) => [c.querySelector('strong').textContent, !c.querySelectorAll('button')[1].disabled])`),
+      autoRunBlockedInTestMode: (checkBriefs(), briefRunning === null),
+    };
+    await js(`[...document.querySelectorAll('#brief-list .brief')].find((c) => /opportunities/i.test(c.querySelector('strong').textContent)).querySelectorAll('button')[1].click()`);
+    await sleep(500);
+    fl.briefings.noteShown = await js(`[...document.querySelectorAll('.brief-note')].some((n) => !n.hidden && /Test opportunity/.test(n.textContent))`);
+    await shot('13-briefings');
     if (decided && decided.action === 'pick') {
       actOnNudge(decided);
       fl.nudge.pickMadeCurrent = store.get().currentTaskId === decided.taskId;

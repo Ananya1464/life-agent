@@ -353,11 +353,50 @@
     $('alerts').append(card);
   }
 
+  // ---------------------------------------------------------------- briefings
+  let briefs = [];
+  const noteText = new Map();                      // task -> text of the note being shown
+  const when = (ms) => (ms ? new Date(ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+  const STATUS = { ok: 'Done', failed: 'Failed', running: 'Running...', none: 'Not run yet' };
+
+  function renderBriefs() {
+    const list = $('brief-list');
+    list.replaceChildren();
+    const ok = briefs.filter((b) => b.status === 'ok').length;
+    $('brief-summary').textContent = briefs.length ? `${ok}/${briefs.length} done` : '';
+    setBadge('brief-badge', briefs.filter((b) => b.status === 'failed').length);
+    for (const b of briefs) {
+      const shown = noteText.has(b.task);
+      const note = h('pre', { class: 'brief-note' });
+      note.hidden = !shown;
+      if (shown) note.textContent = noteText.get(b.task);
+      const run = h('button', { class: 'ghost', type: 'button', text: 'Run now',
+        onclick: async () => { Sfx.play('click'); const r = await api.briefs.run(b.task); if (r && r.ok === false) toast(r.error || 'Could not start'); } });
+      run.disabled = b.status === 'running';
+      const view = h('button', { class: 'ghost', type: 'button', text: shown ? 'Hide' : 'View latest',
+        onclick: async () => {
+          if (noteText.has(b.task)) { noteText.delete(b.task); renderBriefs(); return; }
+          const r = await api.briefs.read(b.task);
+          if (!r.ok) { toast(r.error || 'No note'); return; }
+          noteText.set(b.task, r.text); renderBriefs();
+        } });
+      view.disabled = !b.note;
+      const head = h('div', { class: 'brief-head' },
+        h('div', { class: 'brief-title' }, h('strong', { text: b.label }),
+          h('span', { class: 'muted', text: ` ${b.weekly ? 'weekly Mon' : 'daily'} ${b.time}` })),
+        h('span', { class: `brief-status ${b.status}`, text: STATUS[b.status] || b.status }), run, view);
+      const meta = b.status === 'failed' ? h('div', { class: 'brief-meta err', text: `${b.error || 'It did not finish.'} (${when(b.at)})` })
+        : (b.at ? h('div', { class: 'brief-meta muted', text: `Last run ${when(b.at)}${b.note ? ` · ${b.note}` : ''}` }) : null);
+      list.append(h('div', { class: 'card brief' }, head, meta, note));
+    }
+  }
+
   // ---------------------------------------------------------------- settings
   function renderSettings() {
     const s = state.settings;
     $('set-notifications').checked = !!s.notifications;
     $('set-nudges').checked = s.nudges !== false;
+    $('set-briefings').checked = s.briefings !== false;
     $('set-login').checked = !!s.openAtLogin;
     $('set-avocado').checked = s.avocado !== false;
     $('set-typewriter').checked = s.typewriter !== false;
@@ -365,6 +404,7 @@
     $('cfg-focus').value = s.focusMin;
     $('cfg-break').value = s.breakMin;
   }
+  $('set-briefings').addEventListener('change', async (e) => { state.settings = await api.settings.set({ briefings: e.target.checked }); });
   $('set-nudges').addEventListener('change', async (e) => { state.settings = await api.settings.set({ nudges: e.target.checked }); });
   $('set-notifications').addEventListener('change', async (e) => { state.settings = await api.settings.set({ notifications: e.target.checked }); });
   $('set-typewriter').addEventListener('change', async (e) => { state.settings = await api.settings.set({ typewriter: e.target.checked }); });
@@ -459,6 +499,8 @@
     api.on.game(renderHud);
     api.on.reward(onReward);
     api.on.settings((s) => { state.settings = s; renderSettings(); });
+    api.on.briefs((list) => { briefs = list; renderBriefs(); });
+    api.briefs.list().then((list) => { briefs = list; renderBriefs(); });
     showTab('chat');
   }
   boot().catch((err) => { document.body.prepend(h('div', { class: 'error', text: `Failed to start: ${err.message}` })); });
