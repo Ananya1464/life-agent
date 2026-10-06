@@ -113,3 +113,36 @@ def test_truncated_omniroute_answers_are_skipped(monkeypatch):
     import sys, types
     monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
     assert str(llm.generate("hi", provider="omniroute")) == "A complete, useful answer."
+
+
+def test_a_provider_that_just_hit_a_quota_or_rate_limit_is_skipped_for_a_few_minutes(monkeypatch):
+    from life_agent.agent import llm as _llm
+
+    monkeypatch.setattr(_llm, "PROVIDER", "omniroute")
+    monkeypatch.setattr(_llm, "_provider_available", lambda p: True)
+    order = []
+
+    def fake(provider, prompt, web_search, temperature, think):
+        order.append(provider)
+        if provider == "omniroute":
+            raise RuntimeError("Error code: 429 - rate limited")
+        return "ok"
+
+    monkeypatch.setattr(_llm, "_generate_with_provider", fake)
+    _llm.generate("first")
+    _llm.generate("second")
+    assert order == ["omniroute", "gemini", "gemini"]                 # the second call did not retry omniroute
+    _llm._cooldown_until["omniroute"] = 0                             # cooldown over: it is tried again
+    _llm.generate("third")
+    assert order[-2:] == ["omniroute", "gemini"]
+
+
+def test_cooldown_never_empties_the_chain(monkeypatch):
+    from life_agent.agent import llm as _llm
+
+    monkeypatch.setattr(_llm, "PROVIDER", "gemini")
+    monkeypatch.setattr(_llm, "_provider_available", lambda p: False)
+    import time as _t
+    _llm._cooldown_until["gemini"] = _t.time() + 999
+    monkeypatch.setattr(_llm, "_generate_with_provider", lambda *a, **k: "still tried")
+    assert str(_llm.generate("x")) == "still tried"

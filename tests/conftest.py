@@ -16,6 +16,15 @@ def _briefs_to_tmp(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_provider_cooldowns():
+    from life_agent.agent import llm
+
+    llm._cooldown_until.clear()
+    yield
+    llm._cooldown_until.clear()
+
+
+@pytest.fixture(autouse=True)
 def _no_real_browser(monkeypatch):
     """Tests never start or drive the real BrowserOS browser."""
     from life_agent import browseros

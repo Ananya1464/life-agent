@@ -241,6 +241,17 @@ def _provider_available(provider: str) -> bool:
                  "nvidia": config.NVIDIA_API_KEY}.get(provider))
 
 
+# A provider that just failed with a quota/rate-limit/overload error is skipped for a few minutes, so one
+# briefing does not spend minutes retrying an exhausted provider on every call.
+COOLDOWN_SECONDS = 300
+_cooldown_until: dict[str, float] = {}
+_COOLDOWN_MARKERS = ("429", "ratelimit", "rate limit", "quota", "503", "unavailable", "overloaded", "high demand", "504")
+
+
+def _cools_down(exc: Exception) -> bool:
+    return isinstance(exc, LLMQuotaExceededError) or any(m in str(exc).lower() for m in _COOLDOWN_MARKERS)
+
+
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
              think: bool = True, provider: str | None = None) -> GenerateResult:
     """Generate text. With no explicit provider, falls down the chain omniroute -> gemini -> nvidia
@@ -249,6 +260,10 @@ def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
     primary = (provider if explicit_provider else PROVIDER).strip().lower()
     chain = [primary] if explicit_provider else [
         p for p in PROVIDER_CHAINS.get(primary, [primary]) if p == primary or _provider_available(p)]
+    if not explicit_provider:
+        now = time.time()
+        ready = [p for p in chain if _cooldown_until.get(p, 0) <= now]
+        chain = ready or chain                                  # never leave the chain empty
     if web_search and not explicit_provider and "gemini" in chain and chain[0] != "gemini":
         # only Gemini can really search the web; the others would answer from memory and call it search
         chain = ["gemini"] + [p for p in chain if p != "gemini"]
@@ -265,6 +280,8 @@ def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
                                   model=model)
         except Exception as exc:
             last_error = exc
+            if not explicit_provider and _cools_down(exc):
+                _cooldown_until[active] = time.time() + COOLDOWN_SECONDS
             nxt = chain[i + 1] if i + 1 < len(chain) else None
             kind = "quota exhausted" if isinstance(exc, LLMQuotaExceededError) else f"failed ({str(exc)[:120]})"
             if nxt:

@@ -118,8 +118,12 @@ def page_facts(url: str, max_facts: int = 4, timeout: int = 12) -> list[str]:
 
 
 def _summarize_results(query: str, hits: list[dict]) -> str:
-    for h in hits[:4]:                                   # read the top pages themselves: snippets rarely carry deadlines
-        facts = page_facts(h["url"])
+    from concurrent.futures import ThreadPoolExecutor
+
+    top = hits[:4]                                       # read the top pages themselves: snippets rarely carry deadlines
+    with ThreadPoolExecutor(max_workers=4) as pool:      # in parallel: one slow site no longer stalls the others
+        all_facts = list(pool.map(lambda h: page_facts(h["url"]), top))
+    for h, facts in zip(top, all_facts):
         if facts:
             h["snippet"] = (h["snippet"] + " || PAGE SAYS: " + " | ".join(facts))[:900]
     listing = "\n".join(f"- {h['title']} | {h['url']} | {h['snippet']}" for h in hits)
