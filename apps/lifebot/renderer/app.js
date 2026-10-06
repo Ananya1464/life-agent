@@ -356,8 +356,20 @@
   // ---------------------------------------------------------------- briefings
   let briefs = [];
   const noteText = new Map();                      // task -> text of the note being shown
+  const noteStamp = new Map();                     // task -> which note/run that text came from
+  const refreshing = new Set();
+  const stampOf = (b) => `${b.note}|${b.at}`;
   const when = (ms) => (ms ? new Date(ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '');
   const STATUS = { ok: 'Done', failed: 'Failed', running: 'Running...', none: 'Not run yet' };
+
+  /** "Running 2m 05s (usually 2 to 8 min)": a long run should look like work, not a frozen app. */
+  function runningLabel(startedAt) {
+    const s = startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : 0;
+    return `Running ${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s (usually 2 to 8 min)`;
+  }
+  setInterval(() => {
+    document.querySelectorAll('.brief-status.running').forEach((el) => { el.textContent = runningLabel(Number(el.dataset.at) || 0); });
+  }, 1000);
 
   function renderBriefs() {
     const list = $('brief-list');
@@ -367,6 +379,13 @@
     setBadge('brief-badge', briefs.filter((b) => b.status === 'failed').length);
     for (const b of briefs) {
       const shown = noteText.has(b.task);
+      if (shown && noteStamp.get(b.task) !== stampOf(b) && !refreshing.has(b.task) && b.status !== 'running') {
+        refreshing.add(b.task);                    // never keep showing an older run's text under a newer run's label
+        api.briefs.read(b.task).then((r) => {
+          if (r.ok) { noteText.set(b.task, r.text); noteStamp.set(b.task, stampOf(b)); }
+          refreshing.delete(b.task); renderBriefs();
+        });
+      }
       const note = h('pre', { class: 'brief-note' });
       note.hidden = !shown;
       if (shown) note.textContent = noteText.get(b.task);
@@ -375,16 +394,16 @@
       run.disabled = b.status === 'running';
       const view = h('button', { class: 'ghost', type: 'button', text: shown ? 'Hide' : 'View latest',
         onclick: async () => {
-          if (noteText.has(b.task)) { noteText.delete(b.task); renderBriefs(); return; }
+          if (noteText.has(b.task)) { noteText.delete(b.task); noteStamp.delete(b.task); renderBriefs(); return; }
           const r = await api.briefs.read(b.task);
           if (!r.ok) { toast(r.error || 'No note'); return; }
-          noteText.set(b.task, r.text); renderBriefs();
+          noteText.set(b.task, r.text); noteStamp.set(b.task, stampOf(b)); renderBriefs();
         } });
       view.disabled = !b.note;
       const head = h('div', { class: 'brief-head' },
         h('div', { class: 'brief-title' }, h('strong', { text: b.label }),
           h('span', { class: 'muted', text: ` ${b.weekly ? 'weekly Mon' : 'daily'} ${b.time}` })),
-        h('span', { class: `brief-status ${b.status}`, text: STATUS[b.status] || b.status }), run, view);
+        h('span', { class: `brief-status ${b.status}`, 'data-at': String(b.at || ''), text: b.status === 'running' ? runningLabel(b.at) : (STATUS[b.status] || b.status) }), run, view);
       const meta = b.status === 'failed' ? h('div', { class: 'brief-meta err', text: `${b.error || 'It did not finish.'} (${when(b.at)})` })
         : (b.at ? h('div', { class: 'brief-meta muted', text: `Last run ${when(b.at)}${b.note ? ` · ${b.note}` : ''}` }) : null);
       list.append(h('div', { class: 'card brief' }, head, meta, note));
@@ -497,7 +516,9 @@
   async function boot() {
     const init = await api.init();
     Object.assign(state, { tasks: init.tasks, markdown: init.markdown, reminders: init.reminders, settings: init.settings, currentTaskId: init.currentTaskId || null });
-    $('today-label').textContent = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
+    const paintToday = () => { $('today-label').textContent = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }); };
+    paintToday();
+    setInterval(paintToday, 60000);
     setBridge(init.bridge);
     for (const m of init.chat) addMessage(m.role === 'user' ? 'user' : 'bot', m.text);
     state.history = init.chat.slice(-20);

@@ -129,3 +129,10 @@ test('preference questions: validated before saving, written next to the briefin
   assert.match(main, /const prefsFile = \(\) => path\.join\(briefsDir\(\), '_preferences\.json'\)/);
   assert.match(read('preload.js'), /prefs: \{ get: invoke\('prefs:get'\), set: invoke\('prefs:set'\) \}/);
 });
+
+test('briefings tab never shows an older run\'s text under a newer run\'s label, and the date label follows the clock', () => {
+  const app = read('renderer/app.js');
+  assert.match(app, /const stampOf = \(b\) => `\$\{b\.note\}\|\$\{b\.at\}`/);
+  assert.match(app, /noteStamp\.get\(b\.task\) !== stampOf\(b\)[\s\S]{0,200}api\.briefs\.read\(b\.task\)/);        // re-read when the run changed
+  assert.match(app, /setInterval\(paintToday, 60000\)/);
+});
