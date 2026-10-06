@@ -18,6 +18,7 @@ const T = require('./lib/tasks.js');
 const Days = require('./lib/taskdays.js');
 const Nudges = require('./lib/nudges.js');
 const Schedule = require('./lib/schedule.js');
+const BriefItems = require('./lib/briefitems.js');
 const ntfy = require('./lib/ntfy.js');
 const widgetpos = require('./lib/widgetpos.js');
 const taskedit = require('./lib/taskedit.js');
@@ -986,7 +987,10 @@ function registerIpc() {
     if (typeof task !== 'string' || !Schedule.TASKS.includes(task)) return { ok: false, error: 'Unknown briefing' };
     const name = briefNoteFor(task);
     if (!name) return { ok: false, error: 'No note yet. Run it first.' };
-    try { return { ok: true, name, text: fs.readFileSync(path.join(briefsDir(), name), 'utf8').slice(0, 60000) }; }
+    try {
+      const text = fs.readFileSync(path.join(briefsDir(), name), 'utf8').slice(0, 60000);
+      return { ok: true, name, text, suggestions: BriefItems.suggestTasks(text) };       // one-click task ideas from the note
+    }
     catch (err) { return { ok: false, error: err.message }; }
   });
   ipcMain.handle('dashboard:open', async () => {
@@ -1349,7 +1353,7 @@ async function runSmoke(dir) {
     };
     // briefings tab: lists every scheduled task, shows a saved note, refuses anything not on the fixed schedule
     fs.mkdirSync(briefsDir(), { recursive: true });
-    fs.writeFileSync(path.join(briefsDir(), '2026-10-05 ai_edge.md'), '# AI Edge\n\n1. Test opportunity https://example.org\n');
+    fs.writeFileSync(path.join(briefsDir(), '2026-10-05 ai_edge.md'), '# AI Edge\n\n## 1. Opportunities to apply to\n\n**Test Fellowship** (Org) - https://example.org\nDeadline: October 30\n\n1. Test opportunity https://example.org\n');
     broadcastBriefs();
     await js(`document.querySelector('[data-tab="briefings"]').click()`);
     await sleep(600);
@@ -1366,6 +1370,14 @@ async function runSmoke(dir) {
     await sleep(500);
     fl.briefings.noteShown = await js(`[...document.querySelectorAll('.brief-note')].some((n) => !n.hidden && /Test opportunity/.test(n.textContent))`);
     await shot('13-briefings');
+    // one-click task ideas from the note: listed, addable, and shown as added once they are in the task file
+    fl.suggest = { count: await js(`document.querySelectorAll('.note-add').length`),
+      first: await js(`(document.querySelector('.note-add') || {}).title`) };
+    await js(`document.querySelector('.note-add').click()`);
+    await sleep(900);
+    fl.suggest.inTaskFile = fs.readFileSync(tasksFile(), 'utf8').includes('Review opportunity: Test Fellowship (deadline October 30)');
+    fl.suggest.buttonNowChecked = await js(`(() => { const b = document.querySelector('.note-add'); return b.disabled && b.textContent.startsWith('✓'); })()`);
+    await shot('13b-briefings-suggestions');
     // "what do you want to know?" questions: answers are validated, saved beside the notes, and shown again after reload
     const evilPrefs = await js(`window.lifebot.prefs.set({ wants: ['reading', 'rm -rf'], regions: ['Singapore', 'Mars'], topics: 'RAG and interpretability', eligibility: 'recent grad', window: '2 months', exclude: 'unpaid' })`);
     const onDisk = JSON.parse(fs.readFileSync(path.join(briefsDir(), '_preferences.json'), 'utf8'));

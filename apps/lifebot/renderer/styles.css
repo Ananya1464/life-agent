@@ -231,3 +231,15 @@ input[type=checkbox] { accent-color: var(--green-d); width: 16px; height: 16px; 
 .prefs fieldset { border: 2px dashed var(--ink); padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .prefs legend { font-size: 9px; padding: 0 4px; }
 .prefs input[type="text"], .prefs select { width: 100%; margin-top: 4px; }
+
+.brief-sugg { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.brief-sugg .sugg { text-align: left; font-size: 8px; line-height: 1.6; padding: 6px 10px; overflow-wrap: anywhere; }
+.brief-sugg .sugg:disabled { opacity: .6; cursor: default; }
+
+/* briefing note shown line by line, with an add-to-today button on actionable lines */
+div.brief-note { white-space: normal; font: 11px/1.6 Consolas, "Courier New", monospace; }
+.note-line { display: flex; gap: 10px; align-items: flex-start; padding: 1px 0; }
+.note-txt { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-line.has-idea { background: #fff98a55; border-left: 4px solid #a9e23d; padding: 4px 6px; margin: 2px 0; }
+.note-add { flex: none; font-size: 8px; padding: 5px 8px; white-space: nowrap; }
+.note-add:disabled { opacity: .65; cursor: default; }

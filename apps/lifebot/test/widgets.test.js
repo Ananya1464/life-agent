@@ -136,3 +136,14 @@ test('briefings tab never shows an older run\'s text under a newer run\'s label,
   assert.match(app, /noteStamp\.get\(b\.task\) !== stampOf\(b\)[\s\S]{0,200}api\.briefs\.read\(b\.task\)/);        // re-read when the run changed
   assert.match(app, /setInterval\(paintToday, 60000\)/);
 });
+
+test('briefing task ideas: parsed in the main process, shown as per-line buttons, added only on click', () => {
+  assert.match(main, /const BriefItems = require\('\.\/lib\/briefitems\.js'\)/);
+  assert.match(main, /suggestions: BriefItems\.suggestTasks\(text\)/);
+  const app = read('renderer/app.js');
+  assert.match(app, /api\.tasks\.add\(idea\.text\)/);                                 // the existing, validated add path
+  assert.match(app, /function fillNote\(container, text, ideas\)/);
+  assert.match(app, /const byLine = new Map\(ideas\.map\(\(i\) => \[i\.line, i\]\)\)/);   // a button on the line the idea came from
+  assert.ok(!/ideas\.forEach\([^)]*api\.tasks\.add/.test(app), 'ideas are never added automatically');
+  assert.match(app, /\$\('prefs'\)\.open = false;/);                                  // the questions panel never hides the cards
+});

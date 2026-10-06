@@ -357,6 +357,7 @@
   let briefs = [];
   const noteText = new Map();                      // task -> text of the note being shown
   const noteStamp = new Map();                     // task -> which note/run that text came from
+  const noteSugg = new Map();                      // task -> task ideas parsed from that note
   const refreshing = new Set();
   const stampOf = (b) => `${b.note}|${b.at}`;
   const when = (ms) => (ms ? new Date(ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '');
@@ -371,6 +372,26 @@
     document.querySelectorAll('.brief-status.running').forEach((el) => { el.textContent = runningLabel(Number(el.dataset.at) || 0); });
   }, 1000);
 
+  /** The note, line by line. A line that is an opportunity, paper, reading item, step or meal gets its own
+   *  "+ Add to today" button right there; the click puts that task on today's list (one task, nothing automatic). */
+  function fillNote(container, text, ideas) {
+    const byLine = new Map(ideas.map((i) => [i.line, i]));
+    const have = new Set(state.tasks.map((t) => t.text.toLowerCase()));
+    String(text).split('\n').forEach((line, idx) => {
+      const idea = byLine.get(idx);
+      const row = h('div', { class: `note-line${idea ? ' has-idea' : ''}` }, h('span', { class: 'note-txt', text: line || ' ' }));
+      if (idea) {
+        const added = have.has(idea.text.toLowerCase());
+        const btn = h('button', { class: 'ghost note-add', type: 'button', title: idea.text,
+          text: added ? '\u2713 On today\'s list' : '+ Add to today',
+          onclick: async () => { btn.disabled = true; Sfx.play('done'); await api.tasks.add(idea.text); toast(`Added: ${idea.text}`); } });
+        btn.disabled = added;
+        row.append(btn);
+      }
+      container.append(row);
+    });
+  }
+
   function renderBriefs() {
     const list = $('brief-list');
     list.replaceChildren();
@@ -382,22 +403,22 @@
       if (shown && noteStamp.get(b.task) !== stampOf(b) && !refreshing.has(b.task) && b.status !== 'running') {
         refreshing.add(b.task);                    // never keep showing an older run's text under a newer run's label
         api.briefs.read(b.task).then((r) => {
-          if (r.ok) { noteText.set(b.task, r.text); noteStamp.set(b.task, stampOf(b)); }
+          if (r.ok) { noteText.set(b.task, r.text); noteSugg.set(b.task, r.suggestions || []); noteStamp.set(b.task, stampOf(b)); }
           refreshing.delete(b.task); renderBriefs();
         });
       }
-      const note = h('pre', { class: 'brief-note' });
+      const note = h('div', { class: 'brief-note' });
       note.hidden = !shown;
-      if (shown) note.textContent = noteText.get(b.task);
+      if (shown) fillNote(note, noteText.get(b.task), noteSugg.get(b.task) || []);
       const run = h('button', { class: 'ghost', type: 'button', text: 'Run now',
         onclick: async () => { Sfx.play('click'); const r = await api.briefs.run(b.task); if (r && r.ok === false) toast(r.error || 'Could not start'); } });
       run.disabled = b.status === 'running';
       const view = h('button', { class: 'ghost', type: 'button', text: shown ? 'Hide' : 'View latest',
         onclick: async () => {
-          if (noteText.has(b.task)) { noteText.delete(b.task); noteStamp.delete(b.task); renderBriefs(); return; }
+          if (noteText.has(b.task)) { noteText.delete(b.task); noteStamp.delete(b.task); noteSugg.delete(b.task); renderBriefs(); return; }
           const r = await api.briefs.read(b.task);
           if (!r.ok) { toast(r.error || 'No note'); return; }
-          noteText.set(b.task, r.text); noteStamp.set(b.task, stampOf(b)); renderBriefs();
+          noteText.set(b.task, r.text); noteSugg.set(b.task, r.suggestions || []); noteStamp.set(b.task, stampOf(b)); renderBriefs();
         } });
       view.disabled = !b.note;
       const head = h('div', { class: 'brief-head' },
@@ -420,7 +441,7 @@
     $('pref-window').value = (p && p.window) || '';
     $('pref-exclude').value = (p && p.exclude) || '';
     $('prefs-state').textContent = has ? '(answered; click to change)' : '(not answered yet: answer these 6 so the briefings are about what you want)';
-    $('prefs').open = !has;
+    $('prefs').open = false;                      // collapsed: the briefings stay on top; the summary line says when it is unanswered
   }
   $('prefs-save').addEventListener('click', async () => {
     const vals = (name) => [...document.querySelectorAll(`#prefs input[name="${name}"]:checked`)].map((c) => c.value);
@@ -529,7 +550,7 @@
     renderHud(init.game);
     api.game.stats().then(renderHud);
 
-    api.on.tasks((p) => { state.tasks = p.tasks; state.markdown = p.markdown; state.currentTaskId = p.currentTaskId || null; renderTasks(); });
+    api.on.tasks((p) => { state.tasks = p.tasks; state.markdown = p.markdown; state.currentTaskId = p.currentTaskId || null; renderTasks(); renderBriefs(); });
     api.on.reminders((list) => { state.reminders = list; renderReminders(); });
     api.on.reminderFired(showAlert);
     api.on.pomodoro(renderPomodoro);
