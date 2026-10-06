@@ -46,3 +46,47 @@ def save(task: str, text: object, day: date | None = None) -> Path | None:
     except Exception as err:  # never let a local note stop the task
         print(f"[briefs] not saved ({err})")
         return None
+
+
+PREF_FILE = "_preferences.json"
+_WANTS = {
+    "research_roles": "research internships and research-assistant roles",
+    "remote_jobs": "remote AI/ML jobs",
+    "fellowships": "fellowships and pre-doctoral programs",
+    "masters_phd": "Masters and PhD programs",
+    "scholarships": "scholarships and funding",
+    "conferences": "conferences, workshops and calls for papers",
+    "competitions": "hackathons and competitions",
+    "reading": "reading lists, papers and courses",
+}
+
+
+def load_preferences() -> dict:
+    """What Ananya said she wants to know (written by Lifebot's questions panel). {} when not answered yet."""
+    import json
+
+    try:
+        data = json.loads((briefs_dir() / PREF_FILE).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def preferences_text(prefs: dict | None = None) -> str:
+    """The answers as plain sentences for prompts and search goals. Empty string when nothing was answered."""
+    p = load_preferences() if prefs is None else prefs
+    parts = []
+    wants = [_WANTS[w] for w in p.get("wants", []) if w in _WANTS]
+    if wants:
+        parts.append("She wants to hear about: " + "; ".join(wants) + ".")
+    if p.get("regions"):
+        parts.append("Where: " + ", ".join(str(r) for r in p["regions"]) + ".")
+    if p.get("topics"):
+        parts.append(f"Topics and skills she cares about: {str(p['topics']).strip()}.")
+    if p.get("eligibility"):
+        parts.append(f"Her situation and eligibility: {str(p['eligibility']).strip()}.")
+    if p.get("window"):
+        parts.append(f"Only deadlines within: {p['window']}.")
+    if p.get("exclude"):
+        parts.append(f"Do NOT include: {str(p['exclude']).strip()}.")
+    return " ".join(parts)

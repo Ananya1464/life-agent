@@ -44,7 +44,7 @@ def is_dossier_empty(dossier: str) -> bool:
     lines = [
         line.strip()
         for line in clean.splitlines()
-        if line.strip() and not line.strip().startswith("#")
+        if line.strip() and not line.strip().startswith(("#", "[search status]"))
     ]
     if not lines:
         return True
@@ -82,6 +82,9 @@ def run():
         "skill/project/income trend she could act on; (d) one AI-market "
         "headline from today."
     )
+    prefs = briefs.preferences_text()
+    if prefs:
+        goal += " What she told us she wants: " + prefs
     dossier = research.deep_research(goal, n_queries=6)
 
     # Empty-context guard: do not invoke LLM synthesis on empty evidence
@@ -96,6 +99,7 @@ def run():
             TODAY_ISO=dates.iso(d),
             RESEARCH_NOTES=dossier,
             RECENTLY_COVERED=_recently_covered(),
+            PREFERENCES=prefs or "(She has not answered the preference questions yet: ask her in the final section.)",
         )
         briefing = llm.generate(prompt, think=True)
 
@@ -125,10 +129,10 @@ def run():
         )
 
         # Grounding check: verify entities against research dossier
-        unmatched = grounding.check_grounding(briefing, dossier)
+        briefing, unmatched = grounding.scrub_ungrounded(briefing, dossier)
         if unmatched:
             for entity in unmatched:
-                print(f"[grounding] UNMATCHED ENTITY: {entity}")
+                print(f"[guard] removed ungrounded entity: {entity}")
         else:
             print("[grounding] all extracted entities verified in research dossier.")
     print(briefing)

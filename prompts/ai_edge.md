@@ -9,6 +9,9 @@ ABOUT ANANYA (tailor everything to her):
 ALREADY COVERED ON RECENT DAYS — do NOT repeat these items unless there is genuinely new news about them:
 {{RECENTLY_COVERED}}
 
+WHAT SHE ASKED FOR (her own answers; these OVERRIDE the defaults above, and anything under "Do NOT include" must be left out):
+{{PREFERENCES}}
+
 PRODUCE EXACTLY THESE SECTIONS:
 1. **Opportunities to apply to** — up to 5 currently-open AI/ML research programs, fellowships, RA/pre-doctoral roles, or remote NLP/LLM/RAG jobs that appear in the dossier, ranked best fit first. For EACH item use exactly this shape:
    - **Name** (organisation) - link from the dossier
@@ -26,6 +29,10 @@ CRITICAL GROUNDING & ANTI-HALLUCINATION RULES:
 - Never invent deadlines, application dates, programs, fellowships, or job listings. Use ONLY verified items that appear in the research dossier below.
 - Never invent URLs. If a URL is not in the research dossier, do not fabricate one.
 - If evidence is unavailable for an opportunity or news category, omit that item or state that no verified items were captured today; never pad with generic placeholders.
+
+5. **Questions for you** - 2 short questions that would make the next briefing sharper (for example which countries, which level, which deadline window, or which topic to go deeper on). If the preference answers below are empty, ask the 2 most useful ones. Never ask something her answers already cover. Tell her she can answer them in Lifebot, Briefings tab, "What do you want to know?".
+
+IF NO OPPORTUNITY QUALIFIES: do not write a vague one-liner. Say exactly what was looked for (use her answers), that nothing verified came back, whether the dossier says live search was unavailable, and what she can do next (a specific change to her answers or a retry). Then still give section 5.
 
 Tone: warm, direct, no fluff. Every item must tie back to Ananya specifically. Format in simple markdown. Output only the briefing.
 

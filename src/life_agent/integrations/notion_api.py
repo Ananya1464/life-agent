@@ -125,11 +125,20 @@ def _section_range(blocks, heading_contains: str):
             break
     if start is None:
         return None, []
+    # Template headings start with an emoji (🌅 🌙 ✍️ 📋 📊). The text WE write into a section has its own headings and
+    # dividers, so for those sections the end is the next emoji heading, not the first divider (which used to leave old
+    # content behind and stack a copy of the briefing on every re-run).
+    template_style = not _block_text(blocks[start])[:1].isalnum()
     body = []
     for b in blocks[start + 1:]:
-        if b.get("type") in ("heading_2", "divider"):
+        if b.get("type") == "heading_2" and (not template_style or not _block_text(b)[:1].isalnum()):
+            break
+        if not template_style and b.get("type") == "divider":
             break
         body.append(b)
+    if template_style:
+        while body and body[-1].get("type") == "divider":     # keep the separator that sits before the next section
+            body.pop()
     return start, body
 
 

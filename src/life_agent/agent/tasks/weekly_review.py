@@ -2,6 +2,7 @@
 Best run on Sunday evening or Monday morning."""
 from datetime import timedelta
 
+from life_agent.agent import grounding
 from life_agent import briefs
 from life_agent import dates
 from life_agent.notifications import emailer
@@ -61,6 +62,9 @@ def run():
         FOCUS_SUMMARY=activity_context.build(days=7).summary,
     )
     review = llm.generate(prompt)
+    review, _ungrounded = grounding.scrub_ungrounded(review, prompt)
+    for _entity in _ungrounded:
+        print(f"[guard] removed ungrounded entity: {_entity}")
     print(review)
     briefs.save("weekly_review", review)
 

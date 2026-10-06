@@ -40,6 +40,7 @@ def run():
             f"- Lunch is {lunch} as required by today's rotation\n"
             "- Fully vegetarian, concise and skimmable"
         ),
+        grounded_in=prompt,
     )
     print(plan)
     briefs.save("meal_plan", plan)

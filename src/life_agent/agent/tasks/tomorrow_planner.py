@@ -87,6 +87,7 @@ def run():
             "- Every End-of-day evidence item is marked Pending (nothing marked complete)\n"
             "- No invented people, professors, deadlines, applications or courses; under 450 words"
         ),
+        grounded_in=prompt,
     )
     print(plan)
     briefs.save("tomorrow_planner", plan)

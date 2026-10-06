@@ -249,6 +249,9 @@ def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
     primary = (provider if explicit_provider else PROVIDER).strip().lower()
     chain = [primary] if explicit_provider else [
         p for p in PROVIDER_CHAINS.get(primary, [primary]) if p == primary or _provider_available(p)]
+    if web_search and not explicit_provider and "gemini" in chain and chain[0] != "gemini":
+        # only Gemini can really search the web; the others would answer from memory and call it search
+        chain = ["gemini"] + [p for p in chain if p != "gemini"]
 
     last_error: Exception | None = None
     for i, active in enumerate(chain):

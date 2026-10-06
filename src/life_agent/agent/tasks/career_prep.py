@@ -20,6 +20,9 @@ def run():
         "(b) the skills that recur in currently-open international research roles and fellowships; "
         "(c) currently-open programs, labs, fellowships or remote roles worldwide open to recent graduates."
     )
+    prefs = briefs.preferences_text()
+    if prefs:
+        goal += " What she told us she wants: " + prefs
     dossier = research.deep_research(goal, n_queries=6)
 
     if is_dossier_empty(dossier):
@@ -27,7 +30,8 @@ def run():
         plan = (f"# Global career prep: {dates.day_label(d)}\n\nNo verified findings were captured this week, so "
                 "no plan was generated. Try Run now again later.")
     else:
-        prompt = prompt_loader.load("career_prep", TODAY_ISO=dates.iso(d), RESEARCH_NOTES=dossier)
+        prompt = prompt_loader.load("career_prep", TODAY_ISO=dates.iso(d), RESEARCH_NOTES=dossier,
+                                    PREFERENCES=prefs or "(She has not answered the preference questions yet: ask her in the final section.)")
         plan = llm.generate(prompt, think=True)
         dead = quality.find_dead_links(plan)
         plan = quality.critique_and_revise(
@@ -41,8 +45,8 @@ def run():
             web_search=True,
             extra_issues=([f"These links are DEAD or unreachable: replace or remove them: {dead}"] if dead else None),
         )
-        unmatched = grounding.check_grounding(plan, dossier)
-        for entity in unmatched or []:
-            print(f"[grounding] UNMATCHED ENTITY: {entity}")
+        plan, unmatched = grounding.scrub_ungrounded(plan, dossier)
+        for entity in unmatched:
+            print(f"[guard] removed ungrounded entity: {entity}")
     print(plan)
     briefs.save("career_prep", plan)

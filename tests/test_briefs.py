@@ -25,3 +25,19 @@ def test_empty_text_and_unwritable_dir_never_raise(tmp_path, monkeypatch):
 def test_default_location_is_beside_the_dashboard(monkeypatch):
     monkeypatch.delenv("LIFE_AGENT_BRIEFS_DIR", raising=False)
     assert briefs.briefs_dir().name == "Briefings"
+
+
+def test_preferences_round_trip_into_plain_sentences(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setenv("LIFE_AGENT_BRIEFS_DIR", str(tmp_path))
+    assert briefs.load_preferences() == {} and briefs.preferences_text() == ""
+    (tmp_path / "_preferences.json").write_text(json.dumps({
+        "wants": ["research_roles", "bogus", "reading"], "regions": ["Singapore", "Remote"], "topics": "RAG, interpretability",
+        "eligibility": "recent graduate, not enrolled", "window": "2 months", "exclude": "unpaid roles"}), encoding="utf-8")
+    text = briefs.preferences_text()
+    assert "research internships" in text and "bogus" not in text
+    assert "Singapore, Remote" in text and "RAG, interpretability" in text
+    assert "Only deadlines within: 2 months" in text and "Do NOT include: unpaid roles" in text
+    (tmp_path / "_preferences.json").write_text("not json", encoding="utf-8")
+    assert briefs.load_preferences() == {}                                   # a broken file never breaks a task

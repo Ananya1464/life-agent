@@ -13,3 +13,11 @@ import pytest  # noqa: E402
 def _briefs_to_tmp(tmp_path_factory, monkeypatch):
     """No test may write notes into the real Obsidian vault."""
     monkeypatch.setenv("LIFE_AGENT_BRIEFS_DIR", str(tmp_path_factory.mktemp("briefs")))
+
+
+@pytest.fixture(autouse=True)
+def _no_real_browser(monkeypatch):
+    """Tests never start or drive the real BrowserOS browser."""
+    from life_agent import browseros
+
+    monkeypatch.setattr(browseros, "ensure_running", lambda *a, **k: False)

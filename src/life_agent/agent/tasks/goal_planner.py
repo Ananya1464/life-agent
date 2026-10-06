@@ -102,6 +102,7 @@ def run():
             "- High contrast visual formatting (emoji, bold main physical actions)\n"
             "- If Energy is Low, 50% non-essential goals dropped"
         ),
+        grounded_in=prompt,
     )
     print(plan)
     briefs.save("goal_planner", plan)
