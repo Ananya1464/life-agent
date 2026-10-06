@@ -123,3 +123,9 @@ test('briefings: Lifebot runs only the fixed task list, never in test mode, with
   assert.match(main, /ipcMain\.handle\('briefs:read'[\s\S]{0,200}!Schedule\.TASKS\.includes\(task\)/);
   assert.match(main, /typeof patch\.briefings === 'boolean'/);
 });
+
+test('preference questions: validated before saving, written next to the briefing notes, only choices from the allowlist', () => {
+  assert.match(main, /ipcMain\.handle\('prefs:set', \(_e, input\) => \{\s*const clean = Schedule\.cleanPrefs\(input\)/);
+  assert.match(main, /const prefsFile = \(\) => path\.join\(briefsDir\(\), '_preferences\.json'\)/);
+  assert.match(read('preload.js'), /prefs: \{ get: invoke\('prefs:get'\), set: invoke\('prefs:set'\) \}/);
+});

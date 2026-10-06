@@ -312,6 +312,11 @@ function briefsPayload() {
   });
 }
 
+const prefsFile = () => path.join(briefsDir(), '_preferences.json');
+function readPrefs() {
+  try { return Schedule.cleanPrefs(JSON.parse(fs.readFileSync(prefsFile(), 'utf8'))); } catch (_) { return null; }
+}
+
 function broadcastBriefs() { send('briefs:changed', briefsPayload()); }
 
 /** Run one fixed task as `python -m life_agent.agent.main <task>`; never anything the renderer typed. */
@@ -960,6 +965,17 @@ function registerIpc() {
   ipcMain.handle('chat:clear', () => { store.update((d) => { d.chat = []; }); return []; });
 
   ipcMain.handle('briefs:list', () => briefsPayload());
+  ipcMain.handle('prefs:get', () => readPrefs());
+  ipcMain.handle('prefs:set', (_e, input) => {
+    const clean = Schedule.cleanPrefs(input);
+    try {
+      fs.mkdirSync(briefsDir(), { recursive: true });
+      const tmp = `${prefsFile()}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ ...clean, updated: new Date().toISOString() }, null, 2), 'utf8');
+      fs.renameSync(tmp, prefsFile());
+    } catch (err) { return { ok: false, error: `Could not save: ${err.message}` }; }
+    return { ok: true, prefs: clean };
+  });
   ipcMain.handle('briefs:run', (_e, task) => {
     if (typeof task !== 'string' || !Schedule.TASKS.includes(task)) return { ok: false, error: 'Unknown briefing' };
     if (briefRunning) return { ok: false, error: `Already running: ${briefRunning}` };
@@ -1350,6 +1366,17 @@ async function runSmoke(dir) {
     await sleep(500);
     fl.briefings.noteShown = await js(`[...document.querySelectorAll('.brief-note')].some((n) => !n.hidden && /Test opportunity/.test(n.textContent))`);
     await shot('13-briefings');
+    // "what do you want to know?" questions: answers are validated, saved beside the notes, and shown again after reload
+    const evilPrefs = await js(`window.lifebot.prefs.set({ wants: ['reading', 'rm -rf'], regions: ['Singapore', 'Mars'], topics: 'RAG and interpretability', eligibility: 'recent grad', window: '2 months', exclude: 'unpaid' })`);
+    const onDisk = JSON.parse(fs.readFileSync(path.join(briefsDir(), '_preferences.json'), 'utf8'));
+    await js(`window.lifebot.prefs.get().then(() => {})`);
+    await js(`document.querySelector('#prefs input[value="research_roles"]').click(); document.getElementById('pref-topics').value = 'LLM evaluation'; document.getElementById('prefs-save').click()`);
+    await sleep(600);
+    const afterUi = JSON.parse(fs.readFileSync(path.join(briefsDir(), '_preferences.json'), 'utf8'));
+    fl.prefs = { evilOk: evilPrefs.ok, savedWants: evilPrefs.prefs.wants, savedRegions: evilPrefs.prefs.regions, onDiskKeys: Object.keys(onDisk).sort(),
+      uiSavedTopic: afterUi.topics, uiWants: afterUi.wants, panelClosedAfterSave: await js(`!document.getElementById('prefs').open`) };
+    await js(`document.getElementById('prefs').open = true`);
+    await shot('14-briefings-questions');
     if (decided && decided.action === 'pick') {
       actOnNudge(decided);
       fl.nudge.pickMadeCurrent = store.get().currentTaskId === decided.taskId;

@@ -99,6 +99,40 @@
       <section class="view" id="view-briefings">
         <header class="view-head"><h1>Briefings</h1><div class="head-right"><span class="muted" id="brief-summary"></span></div></header>
         <div class="muted brief-intro">Lifebot runs these for you at the times shown (and catches up if the PC was off). Notes are saved in your Obsidian vault under Briefings.</div>
+        <details class="card prefs" id="prefs">
+          <summary><strong>What do you want to know?</strong> <span class="muted" id="prefs-state"></span></summary>
+          <div class="prefs-body">
+            <div class="muted">Answer once; every briefing uses it. Change it any time.</div>
+            <fieldset><legend>1. What should I look for?</legend>
+              <label class="check"><input type="checkbox" name="wants" value="research_roles"> Research internships / RA roles</label>
+              <label class="check"><input type="checkbox" name="wants" value="remote_jobs"> Remote AI/ML jobs</label>
+              <label class="check"><input type="checkbox" name="wants" value="fellowships"> Fellowships and pre-doc programs</label>
+              <label class="check"><input type="checkbox" name="wants" value="masters_phd"> Masters / PhD programs</label>
+              <label class="check"><input type="checkbox" name="wants" value="scholarships"> Scholarships and funding</label>
+              <label class="check"><input type="checkbox" name="wants" value="conferences"> Conferences, workshops, calls for papers</label>
+              <label class="check"><input type="checkbox" name="wants" value="competitions"> Hackathons and competitions</label>
+              <label class="check"><input type="checkbox" name="wants" value="reading"> Reading lists, papers and courses</label>
+            </fieldset>
+            <fieldset><legend>2. Where?</legend>
+              <label class="check"><input type="checkbox" name="regions" value="India"> India</label>
+              <label class="check"><input type="checkbox" name="regions" value="Remote"> Remote</label>
+              <label class="check"><input type="checkbox" name="regions" value="USA"> USA</label>
+              <label class="check"><input type="checkbox" name="regions" value="UK"> UK</label>
+              <label class="check"><input type="checkbox" name="regions" value="Europe"> Europe</label>
+              <label class="check"><input type="checkbox" name="regions" value="Singapore"> Singapore</label>
+              <label class="check"><input type="checkbox" name="regions" value="Canada"> Canada</label>
+              <label class="check"><input type="checkbox" name="regions" value="Australia"> Australia</label>
+              <label class="check"><input type="checkbox" name="regions" value="Middle East"> Middle East</label>
+              <label class="check"><input type="checkbox" name="regions" value="Anywhere"> Anywhere</label>
+            </fieldset>
+            <label class="grow">3. Topics and skills to go deep on <input id="pref-topics" type="text" maxlength="300" placeholder="e.g. RAG, interpretability, AI safety, LLM evaluation"></label>
+            <label class="grow">4. Your situation (so I flag what you are not eligible for) <input id="pref-eligibility" type="text" maxlength="300" placeholder="e.g. recent BE grad, not enrolled, Mumbai"></label>
+            <label>5. Only deadlines within
+              <select id="pref-window"><option value="">no preference</option><option>2 weeks</option><option>1 month</option><option>2 months</option><option>3 months</option><option>6 months</option><option>any</option></select></label>
+            <label class="grow">6. Leave out <input id="pref-exclude" type="text" maxlength="200" placeholder="e.g. unpaid roles, roles needing a PhD, crypto"></label>
+            <div class="row"><button class="primary" id="prefs-save" type="button">Save my answers</button><span class="muted" id="prefs-msg"></span></div>
+          </div>
+        </details>
         <div class="brief-list" id="brief-list"></div>
       </section>
 

@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('lifebot', {
     snooze: invoke('reminders:snooze'), testPush: invoke('reminders:testPush'),
   },
   settings: { set: invoke('settings:set') },
+  prefs: { get: invoke('prefs:get'), set: invoke('prefs:set') },
   briefs: { list: invoke('briefs:list'), run: invoke('briefs:run'), read: invoke('briefs:read') },
   chat: { send: invoke('chat:send'), clear: invoke('chat:clear') },
   dashboard: { open: invoke('dashboard:open') },

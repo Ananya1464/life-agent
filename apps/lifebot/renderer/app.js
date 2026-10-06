@@ -391,6 +391,25 @@
     }
   }
 
+  // "What do you want to know?" answers, shared by every briefing
+  function fillPrefs(p) {
+    const has = !!(p && (p.wants.length || p.regions.length || p.topics || p.eligibility || p.window || p.exclude));
+    document.querySelectorAll('#prefs input[name="wants"]').forEach((c) => { c.checked = !!(p && p.wants.includes(c.value)); });
+    document.querySelectorAll('#prefs input[name="regions"]').forEach((c) => { c.checked = !!(p && p.regions.includes(c.value)); });
+    $('pref-topics').value = (p && p.topics) || '';
+    $('pref-eligibility').value = (p && p.eligibility) || '';
+    $('pref-window').value = (p && p.window) || '';
+    $('pref-exclude').value = (p && p.exclude) || '';
+    $('prefs-state').textContent = has ? '(answered; click to change)' : '(not answered yet: answer these 6 so the briefings are about what you want)';
+    $('prefs').open = !has;
+  }
+  $('prefs-save').addEventListener('click', async () => {
+    const vals = (name) => [...document.querySelectorAll(`#prefs input[name="${name}"]:checked`)].map((c) => c.value);
+    const r = await api.prefs.set({ wants: vals('wants'), regions: vals('regions'), topics: $('pref-topics').value, eligibility: $('pref-eligibility').value,
+      window: $('pref-window').value, exclude: $('pref-exclude').value });
+    if (r.ok) { fillPrefs(r.prefs); $('prefs').open = false; toast('Saved. The next briefings will use your answers.'); } else { $('prefs-msg').textContent = r.error; }
+  });
+
   // ---------------------------------------------------------------- settings
   function renderSettings() {
     const s = state.settings;
@@ -501,6 +520,7 @@
     api.on.settings((s) => { state.settings = s; renderSettings(); });
     api.on.briefs((list) => { briefs = list; renderBriefs(); });
     api.briefs.list().then((list) => { briefs = list; renderBriefs(); });
+    api.prefs.get().then(fillPrefs);
     showTab('chat');
   }
   boot().catch((err) => { document.body.prepend(h('div', { class: 'error', text: `Failed to start: ${err.message}` })); });

@@ -224,3 +224,10 @@ input[type=checkbox] { accent-color: var(--green-d); width: 16px; height: 16px; 
 .brief-meta.err { color: #9c342d; }
 .brief-note { margin: 0; padding: 10px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 Consolas, "Courier New", monospace; background: var(--card); border: 2px dashed var(--ink); user-select: text; }
 .brief-note[hidden] { display: none; }
+
+.prefs { margin-bottom: 12px; padding: 10px 12px; }
+.prefs summary { cursor: pointer; font-size: 10px; line-height: 1.7; }
+.prefs-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; font-size: 9px; }
+.prefs fieldset { border: 2px dashed var(--ink); padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.prefs legend { font-size: 9px; padding: 0 4px; }
+.prefs input[type="text"], .prefs select { width: 100%; margin-top: 4px; }

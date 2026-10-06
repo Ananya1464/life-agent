@@ -38,3 +38,17 @@ test('failures retry after 30 minutes, at most twice a day', () => {
 test('the runner only ever names tasks from the fixed schedule', () => {
   assert.deepEqual(S.TASKS.slice().sort(), ['ai_edge', 'career_prep', 'evening_checkin', 'goal_planner', 'meal_plan', 'tomorrow_planner', 'weekly_review']);
 });
+
+test('preference answers are validated: unknown choices dropped, text collapsed and capped', () => {
+  const p = S.cleanPrefs({ wants: ['reading', 'evil'], regions: ['USA', 'Mars'], topics: '  RAG \n stuff ', eligibility: 'x'.repeat(500),
+    window: '1 month', exclude: 42, junk: true });
+  assert.deepEqual(p.wants, ['reading']);
+  assert.deepEqual(p.regions, ['USA']);
+  assert.equal(p.topics, 'RAG stuff');
+  assert.equal(p.eligibility.length, 300);
+  assert.equal(p.window, '1 month');
+  assert.equal(p.exclude, '');
+  assert.ok(!('junk' in p));
+  assert.equal(S.cleanPrefs('nonsense').window, '');
+  assert.equal(S.cleanPrefs({ window: '10 years' }).window, '');
+});

@@ -57,4 +57,26 @@ function finished(runs, task, ok, now, error = '') {
   return { ...runs, [task]: { ...prev, status: ok ? 'ok' : 'failed', at: now, error: ok ? '' : String(error).slice(0, 300) } };
 }
 
-module.exports = { SCHEDULE, TASKS, RETRY_AFTER, MAX_ATTEMPTS, due, started, finished, dayKey };
+/** The questions Lifebot asks about what she wants to know. Only these choices are accepted and saved. */
+const PREF_OPTIONS = {
+  wants: ['research_roles', 'remote_jobs', 'fellowships', 'masters_phd', 'scholarships', 'conferences', 'competitions', 'reading'],
+  regions: ['India', 'Remote', 'USA', 'UK', 'Europe', 'Singapore', 'Canada', 'Australia', 'Middle East', 'Anywhere'],
+  window: ['2 weeks', '1 month', '2 months', '3 months', '6 months', 'any'],
+};
+
+/** Validate untrusted answers: unknown choices dropped, free text collapsed to one line and capped. */
+function cleanPrefs(input) {
+  const i = input && typeof input === 'object' ? input : {};
+  const pick = (v, allowed) => (Array.isArray(v) ? allowed.filter((a) => v.includes(a)) : []);
+  const text = (v, max) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+  return {
+    wants: pick(i.wants, PREF_OPTIONS.wants),
+    regions: pick(i.regions, PREF_OPTIONS.regions),
+    topics: text(i.topics, 300),
+    eligibility: text(i.eligibility, 300),
+    window: PREF_OPTIONS.window.includes(i.window) ? i.window : '',
+    exclude: text(i.exclude, 200),
+  };
+}
+
+module.exports = { PREF_OPTIONS, cleanPrefs, SCHEDULE, TASKS, RETRY_AFTER, MAX_ATTEMPTS, due, started, finished, dayKey };
