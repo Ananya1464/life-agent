@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import datetime
 
 from life_agent import dates
@@ -104,6 +105,23 @@ def _build_prompt(message: str, history: list[dict], state: dict, scratch: list[
     return "\n\n".join(parts)
 
 
+CHAT_ATTEMPTS = 3
+CHAT_RETRY_WAIT_SECONDS = (2, 5)
+
+
+def _generate_with_retries(llm, prompt: str) -> str:
+    """One chat model call that survives a short outage: the whole provider chain is tried again after a pause."""
+    last: Exception | None = None
+    for attempt in range(CHAT_ATTEMPTS):
+        try:
+            return str(llm.generate(prompt, temperature=0.3, think=False))
+        except Exception as exc:
+            last = exc
+            if attempt < CHAT_ATTEMPTS - 1:
+                time.sleep(CHAT_RETRY_WAIT_SECONDS[min(attempt, len(CHAT_RETRY_WAIT_SECONDS) - 1)])
+    raise last
+
+
 def respond(message: str, history: list[dict] | None = None, state: dict | None = None,
             generate=None, now: datetime | None = None) -> dict:
     """Return {"reply": str, "actions": [...]}. Never raises."""
@@ -113,7 +131,7 @@ def respond(message: str, history: list[dict] | None = None, state: dict | None 
         return {"reply": "Say something and I will help.", "actions": []}
     if generate is None:
         from life_agent.agent import llm
-        generate = lambda prompt: str(llm.generate(prompt, temperature=0.3, think=False))
+        generate = lambda prompt: _generate_with_retries(llm, prompt)
     now = now or datetime.now(dates.TZ)
 
     actions: list[dict] = []

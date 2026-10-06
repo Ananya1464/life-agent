@@ -60,6 +60,7 @@ def plan_queries(goal: str, n: int = 4) -> list[str]:
     return queries[:n]
 
 
+SEARCH_STAGGER_SECONDS = 1.5
 SEARCH_UNAVAILABLE = "NOTHING FOUND (live web search was unavailable)"
 
 
@@ -193,13 +194,29 @@ def deep_research(goal: str, n_queries: int = 4) -> str:
         sections.append("### Verified Research Papers\n(arXiv query returned no items; omit paper section if no verified sources available)")
 
     # 2. Opportunities & News (Web searches)
+    _t = time.time()
     queries = plan_queries(goal, n_queries)
+    print(f"[time] planned queries in {time.time() - _t:.0f}s")
     web_findings = []
     unavailable = 0
     for q in queries:
         print(f"[research] searching: {q}")
-        time.sleep(2)  # courteous pacing to protect rate limits
-        finding = search_one(q)
+
+    def _one(indexed):
+        i, q = indexed
+        time.sleep(i * SEARCH_STAGGER_SECONDS)    # stagger the start so the browser and the model are not hit at once
+        started = time.time()
+        found = search_one(q)
+        print(f"[time] search {i + 1}/{len(queries)} took {time.time() - started:.0f}s")
+        return found
+
+    # Searches are independent, so run a few at a time (each uses its own BrowserOS tab and a model call):
+    # sequentially they took 45-95 s each, about 7 minutes in total.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        findings = list(pool.map(_one, enumerate(queries)))
+    for q, finding in zip(queries, findings):
         if finding == SEARCH_UNAVAILABLE:
             unavailable += 1
         elif finding and "NOTHING FOUND" not in finding and "(search failed" not in finding:

@@ -114,6 +114,9 @@ def _retry(fn, *args, **kwargs):
             delay *= 2
 
 
+_model_cooldown_until: dict[str, float] = {}
+
+
 def _generate_omniroute(prompt, web_search, temperature, think):
     """OmniRoute gateway (OpenAI-compatible). Tries each model in OMNIROUTE_MODELS in order and
     moves on when one is refused (rate limit, bad request, server error)."""
@@ -127,7 +130,9 @@ def _generate_omniroute(prompt, web_search, temperature, think):
     messages.append({"role": "user", "content": prompt})
 
     errors = []
-    for model in config.OMNIROUTE_MODELS:
+    now = time.time()
+    models = [m for m in config.OMNIROUTE_MODELS if _model_cooldown_until.get(m, 0) <= now] or list(config.OMNIROUTE_MODELS)
+    for model in models:
         try:
             resp = client.chat.completions.create(
                 model=model, messages=messages, max_tokens=4096, temperature=temperature)
@@ -141,6 +146,8 @@ def _generate_omniroute(prompt, web_search, temperature, think):
                 return text
             errors.append(f"{model}: empty response")
         except Exception as exc:
+            if _cools_down(exc):
+                _model_cooldown_until[model] = time.time() + COOLDOWN_SECONDS
             errors.append(f"{model}: {type(exc).__name__} {str(exc)[:80]}")
     raise RuntimeError("OmniRoute: all models failed (" + "; ".join(errors) + ")")
 

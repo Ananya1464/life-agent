@@ -137,3 +137,29 @@ def test_summarizer_receives_the_page_quotes(monkeypatch):
     monkeypatch.setattr(research.llm, "generate", lambda p, **k: seen.append(p) or "ok")
     research._summarize_results("q", [{"title": "CBAI", "url": "https://example.org", "snippet": "fellowship"}])
     assert "PAGE SAYS: Applications are due September 6" in seen[0] and "report both statements as written" in seen[0]
+
+
+def test_deep_research_runs_searches_in_parallel_but_keeps_query_order(monkeypatch):
+    import threading
+    import time as _time
+
+    active, peak = [0], [0]
+    lock = threading.Lock()
+
+    def slow_search(q, attempts=3):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        _time.sleep(0.15)
+        with lock:
+            active[0] -= 1
+        return f"- finding for {q}"
+
+    monkeypatch.setattr(research, "fetch_arxiv_papers", lambda *a, **k: [])
+    monkeypatch.setattr(research, "plan_queries", lambda goal, n: ["q1", "q2", "q3", "q4", "q5", "q6"])
+    monkeypatch.setattr(research, "search_one", slow_search)
+    monkeypatch.setattr(research, "SEARCH_STAGGER_SECONDS", 0)
+    dossier = research.deep_research("goal", 6)
+    assert 2 <= peak[0] <= 3                                              # parallel, but never more than 3 at once
+    order = [dossier.index(f"#### Query: q{i}") for i in range(1, 7)]
+    assert order == sorted(order)                                         # findings stay in query order

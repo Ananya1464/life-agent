@@ -20,6 +20,11 @@ TASKS = (
 )
 
 
+# Tasks after which the dashboard figures are refreshed. The morning briefings (meal plan, AI Edge, career prep)
+# do not change them and used to spend over a minute on it each.
+METRICS_TASKS = {"evening_checkin", "goal_planner", "tomorrow_planner", "weekly_review"}
+
+
 def run(task: str):
     if task not in TASKS:
         sys.exit(f"Unknown task '{task}'. Choose from: {', '.join(TASKS)}")
@@ -33,7 +38,11 @@ def run(task: str):
             print(f"[notify] task-start notice not sent ({notice_error}); continuing with {task}")
         mod.run()
         event_model.record_task_completed(task, date_iso=dates.today().isoformat())
-        metrics.update_metrics()
+        if task in METRICS_TASKS:
+            try:
+                metrics.update_metrics()          # ~75 s of Notion writes: only the day-end tasks need the figures refreshed
+            except Exception as err:               # a metrics hiccup must never turn a finished briefing into a failure
+                print(f"[metrics] update skipped: {str(err)[:160]}")
     except Exception as e:
         store.append("task_failed", {"task": task, "error": str(e)})
         outbound.send_failure_notification(task, e)

@@ -20,8 +20,10 @@ def _fresh_provider_cooldowns():
     from life_agent.agent import llm
 
     llm._cooldown_until.clear()
+    llm._model_cooldown_until.clear()
     yield
     llm._cooldown_until.clear()
+    llm._model_cooldown_until.clear()
 
 
 @pytest.fixture(autouse=True)

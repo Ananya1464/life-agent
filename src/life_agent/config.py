@@ -27,7 +27,8 @@ OMNIROUTE_API_KEY = os.getenv("OMNIROUTE_API_KEY", "")
 # NOTE: auto/claude-* aliases are NOT guaranteed to be Claude; they route to whatever is available.
 OMNIROUTE_BASE_URL = os.getenv("OMNIROUTE_BASE_URL", "http://localhost:20128/v1")
 OMNIROUTE_MODELS = [m.strip() for m in os.getenv(
-    "OMNIROUTE_MODELS", "antigravity/claude-sonnet-4-6,antigravity/claude-opus-4-6-thinking").split(",") if m.strip()]
+    "OMNIROUTE_MODELS",
+    "antigravity/claude-sonnet-4-6,antigravity/claude-opus-4-6-thinking,auto/best-chat,auto/best-fast,ai").split(",") if m.strip()]
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
