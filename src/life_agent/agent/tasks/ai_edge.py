@@ -3,8 +3,10 @@ Pipeline (mirrors Claude's Cowork research runs):
   read memory (recent Notion briefings) → plan queries → search web →
   synthesize from evidence → verify links → critique/revise → deliver.
 Primary delivery: today's Notion Daily Log entry. Email is secondary."""
+import time
 from datetime import timedelta
 
+from life_agent import briefs
 from life_agent import dates
 from life_agent.notifications import emailer
 from life_agent.agent import grounding
@@ -43,7 +45,7 @@ def is_dossier_empty(dossier: str) -> bool:
     lines = [
         line.strip()
         for line in clean.splitlines()
-        if line.strip() and not line.strip().startswith("#")
+        if line.strip() and not line.strip().startswith(("#", "[search status]"))
     ]
     if not lines:
         return True
@@ -69,6 +71,10 @@ def deterministic_empty_briefing(day_label: str) -> str:
 
 def run():
     d = dates.today()
+    _t0 = time.time()
+
+    def _lap(label):
+        print(f"[time] {label}: {time.time() - _t0:.0f}s since start")
 
     # 1-2. Plan queries + search the live web (multi-query, evidence-based)
     goal = (
@@ -81,7 +87,11 @@ def run():
         "skill/project/income trend she could act on; (d) one AI-market "
         "headline from today."
     )
+    prefs = briefs.preferences_text()
+    if prefs:
+        goal += " What she told us she wants: " + prefs
     dossier = research.deep_research(goal, n_queries=6)
+    _lap("research done")
 
     # Empty-context guard: do not invoke LLM synthesis on empty evidence
     if is_dossier_empty(dossier):
@@ -95,8 +105,10 @@ def run():
             TODAY_ISO=dates.iso(d),
             RESEARCH_NOTES=dossier,
             RECENTLY_COVERED=_recently_covered(),
+            PREFERENCES=prefs or "(She has not answered the preference questions yet: ask her in the final section.)",
         )
         briefing = llm.generate(prompt, think=True)
+        _lap("briefing drafted")
 
         provider_name = getattr(briefing, "provider", "unknown")
         grounded = getattr(briefing, "search_grounded", False)
@@ -105,6 +117,7 @@ def run():
 
         # 4. Verify: HTTP-check every link, then a reviewer pass
         dead = quality.find_dead_links(briefing)
+        _lap("links checked")
         briefing = quality.critique_and_revise(
             briefing,
             checklist=(
@@ -124,13 +137,15 @@ def run():
         )
 
         # Grounding check: verify entities against research dossier
-        unmatched = grounding.check_grounding(briefing, dossier)
+        _lap("reviewed")
+        briefing, unmatched = grounding.scrub_ungrounded(briefing, dossier)
         if unmatched:
             for entity in unmatched:
-                print(f"[grounding] UNMATCHED ENTITY: {entity}")
+                print(f"[guard] removed ungrounded entity: {entity}")
         else:
             print("[grounding] all extracted entities verified in research dossier.")
     print(briefing)
+    briefs.save("ai_edge", briefing)
 
     # 5. Deliver — Notion primary, email secondary
     try:

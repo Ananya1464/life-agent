@@ -1,5 +1,6 @@
 """~10:00 PM IST — adaptive 'Tomorrow's plan'.
 Reads today's achievements from Notion, writes the plan into tomorrow's entry."""
+from life_agent import briefs
 from life_agent.integrations import calendar_feed
 from life_agent import dates
 from life_agent.notifications import emailer
@@ -7,6 +8,8 @@ from life_agent.agent import llm
 from life_agent.integrations import notion_api
 from life_agent.agent import prompt_loader
 from life_agent.agent import quality
+from life_agent.agent import activity_context
+from life_agent.agent import project_state
 
 
 def _clean_achieved(text: str) -> str:
@@ -49,6 +52,9 @@ def run():
     events = calendar_feed.events_on(tmrw)
     cal_text = "; ".join(events) if events else "(none / calendar not connected)"
     agent_state = _recent_agent_state()
+    activity = activity_context.build()
+    projects = project_state.build()
+    print(f"[activity] plan load mode: {activity.mode}")
 
     # STEP 2 — produce the briefing
     prompt = prompt_loader.load(
@@ -59,6 +65,9 @@ def run():
         ACHIEVED_SECTION=achieved_section,
         CALENDAR_EVENTS=cal_text,
         RECENT_AGENT_STATE=agent_state,
+        FOCUS_SUMMARY=activity.summary,
+        LOAD_GUIDANCE=activity.load_guidance,
+        PROJECT_STATE=projects,
     )
     plan = llm.generate(prompt)
 
@@ -66,16 +75,22 @@ def run():
     plan = quality.critique_and_revise(
         plan,
         checklist=(
-            "- Under 200 words, exactly 3 sections (3 priorities / outreach "
-            "quota / one reflection prompt)\n"
-            f"- Does NOT re-assign anything already completed in: "
-            f"{achievements} | {achieved_section}\n"
-            "- Names a specific real professor from the India/NUS tier to contact first\n"
-            "- No fictional advisors (e.g. Dr. Sarah Chen), thesis chapters, or fictional lab partners\n"
-            "- No invented deadlines"
+            "- Has exactly these sections: Tomorrow's mission, Schedule, Definition of done, "
+            "If the day goes off schedule, End-of-day evidence\n"
+            "- Contains the line saying it is a proposed schedule, not a report of completed work\n"
+            f"- Follows this plan-size guidance: {activity.load_guidance}\n"
+            "- Every project, task and number is present in the facts given (project state, logged "
+            f"achievements: {achievements} | {achieved_section}, focus data); nothing invented\n"
+            "- Does NOT re-assign anything already completed today\n"
+            "- Every task is verifiable (test, log, diff or note); no vague items like 'work on X'\n"
+            "- Includes real breaks, buffer, and at least one study block\n"
+            "- Every End-of-day evidence item is marked Pending (nothing marked complete)\n"
+            "- No invented people, professors, deadlines, applications or courses; under 450 words"
         ),
+        grounded_in=prompt,
     )
     print(plan)
+    briefs.save("tomorrow_planner", plan)
 
     # STEP 3 — write it into TOMORROW's Notion entry (primary delivery)
     try:

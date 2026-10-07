@@ -4,6 +4,15 @@ const fs = require('node:fs');
 
 let mainWindow = null;
 
+// Test mode (POMODORO_SMOKE_DIR): isolated profile and log, no single-instance lock
+const SMOKE_DIR = process.env.POMODORO_SMOKE_DIR || '';
+if (process.env.POMODORO_USER_DATA) app.setPath('userData', process.env.POMODORO_USER_DATA);
+if (!SMOKE_DIR && !app.requestSingleInstanceLock()) {
+  app.quit();                                    // one avocado is enough
+} else if (!SMOKE_DIR) {
+  app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.showInactive(); } });
+}
+
 const getConfigPath = () => path.join(app.getPath('userData'), 'pomodoro-config.json');
 
 const loadConfig = () => {
@@ -15,7 +24,7 @@ const loadConfig = () => {
   } catch (err) {
     console.error('Failed to load config:', err);
   }
-  return { logPath: path.join(app.getPath('documents'), 'pomodoro-log.md') };
+  return { logPath: process.env.POMODORO_LOG_PATH || path.join(app.getPath('documents'), 'pomodoro-log.md') };
 };
 
 const saveConfig = (config) => {
@@ -41,15 +50,20 @@ const createWindow = () => {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      autoplayPolicy: 'no-user-gesture-required',   // the alarm must sound without a click
+      backgroundThrottling: false                    // keep timers and audio exact while unfocused/covered
     }
   });
+  mainWindow.setAlwaysOnTop(true, 'floating');       // above ordinary windows, below system UI
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 };
 
 app.whenReady().then(() => {
   createWindow();
+  if (SMOKE_DIR) runSmoke(SMOKE_DIR).catch((err) => { console.error('SMOKE FAILED', err); app.exit(2); });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -123,6 +137,55 @@ ipcMain.handle('window-shake', async () => {
   }, 40);
 });
 
+// Taskbar attention flash while the alarm rings (strictly boolean-validated)
+ipcMain.handle('alarm-attention', async (event, on) => {
+  if (typeof on !== 'boolean' || !mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.flashFrame(on);
+  return true;
+});
+
 ipcMain.on('quit-app', () => {
   app.quit();
 });
+
+/** Drive the real window through a full session, save screenshots and report (test mode only). */
+async function runSmoke(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  const wc = mainWindow.webContents;
+  const errors = [];
+  wc.on('console-message', (_e, level, message) => { if (level >= 2) errors.push(message); });
+  if (wc.isLoading()) await new Promise((r) => wc.once('did-finish-load', r));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const js = (code) => wc.executeJavaScript(code);
+  const shot = async (name) => { await sleep(700); wc.invalidate(); await sleep(400); fs.writeFileSync(path.join(dir, name + '.png'), (await wc.capturePage()).toPNG()); };
+  const result = { errors, alwaysOnTop: mainWindow.isAlwaysOnTop() };
+  await sleep(600);
+  await shot('1-idle');
+
+  await js("document.getElementById('input-minutes').value = '25'; document.getElementById('input-task').value = 'Write report'; document.getElementById('btn-start').click();");
+  result.afterStart = await js('window.__pomo.debug()');
+  result.duplicateStart = await js("document.getElementById('btn-start').click(); window.__pomo.debug().state");
+  await shot('2-timer');
+  const t1 = await js("document.getElementById('timer-countdown').textContent"); await sleep(2200);
+  const t2 = await js("document.getElementById('timer-countdown').textContent");
+  result.countdown = [t1, t2];
+
+  // Make the session end 1.2s from now (the end timestamp is the single source of truth)
+  await js('sessionEndTime = Date.now() + 1200;');
+  await sleep(2600);
+  result.atAlarm = await js('window.__pomo.debug()');
+  result.windowFocused = mainWindow.isFocused();
+  await shot('3-celebration');
+  await sleep(1200);
+  result.alarmStillRinging = await js('window.__pomo.debug().alarm.playing');
+  await shot('4-celebration-later');
+
+  await js("document.getElementById('btn-stop-alarm').click();");
+  await sleep(500);
+  result.afterStop = await js('window.__pomo.debug()');
+  const logFile = process.env.POMODORO_LOG_PATH;
+  result.logLines = logFile && fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').trim().split(/\r?\n/) : [];
+  await shot('5-after-stop');
+  fs.writeFileSync(path.join(dir, 'smoke.json'), JSON.stringify(result, null, 2));
+  app.quit();
+}

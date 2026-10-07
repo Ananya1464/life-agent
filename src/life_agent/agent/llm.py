@@ -25,11 +25,13 @@ class GenerateResult(str):
     """String subclass that carries provider and search-grounding metadata."""
     provider: str
     search_grounded: bool
+    model: str
 
-    def __new__(cls, text: str, provider: str = "", search_grounded: bool = False):
+    def __new__(cls, text: str, provider: str = "", search_grounded: bool = False, model: str = ""):
         obj = super().__new__(cls, text)
         obj.provider = provider
         obj.search_grounded = search_grounded
+        obj.model = model
         return obj
 
 
@@ -66,6 +68,8 @@ FALLBACK_PROVIDER = getattr(config, "LLM_FALLBACK_PROVIDER", None) or os.getenv(
 FALLBACK_PROVIDER = FALLBACK_PROVIDER.lower()
 
 THINKING_BUDGET = int(os.getenv("THINKING_BUDGET", "8000"))
+OMNIROUTE_TIMEOUT = float(os.getenv("OMNIROUTE_TIMEOUT", "90"))
+_last_model: dict = {}  # provider -> model that actually answered
 MAX_RETRIES = int(getattr(config, "LLM_MAX_RETRIES", None) or os.getenv("LLM_MAX_RETRIES", "3"))
 
 
@@ -108,6 +112,44 @@ def _retry(fn, *args, **kwargs):
             print(f"[llm] transient error, retrying in {delay}s: {msg[:120]}")
             time.sleep(delay)
             delay *= 2
+
+
+_model_cooldown_until: dict[str, float] = {}
+
+
+def _generate_omniroute(prompt, web_search, temperature, think):
+    """OmniRoute gateway (OpenAI-compatible). Tries each model in OMNIROUTE_MODELS in order and
+    moves on when one is refused (rate limit, bad request, server error)."""
+    from openai import OpenAI
+
+    client = OpenAI(base_url=config.OMNIROUTE_BASE_URL, api_key=config.OMNIROUTE_API_KEY,
+                    timeout=OMNIROUTE_TIMEOUT, max_retries=0)
+    messages = []
+    if SYSTEM_PROMPT:
+        messages.append({"role": "system", "content": SYSTEM_PROMPT})
+    messages.append({"role": "user", "content": prompt})
+
+    errors = []
+    now = time.time()
+    models = [m for m in config.OMNIROUTE_MODELS if _model_cooldown_until.get(m, 0) <= now] or list(config.OMNIROUTE_MODELS)
+    for model in models:
+        try:
+            resp = client.chat.completions.create(
+                model=model, messages=messages, max_tokens=4096, temperature=temperature)
+            choice = resp.choices[0]
+            text = (choice.message.content or "").strip()
+            if getattr(choice, "finish_reason", "stop") == "length" or (text and len(text) < 8):
+                errors.append(f"{model}: truncated answer")      # a cut-off plan is worse than a retry
+                continue
+            if text:
+                _last_model["omniroute"] = getattr(resp, "model", None) or model
+                return text
+            errors.append(f"{model}: empty response")
+        except Exception as exc:
+            if _cools_down(exc):
+                _model_cooldown_until[model] = time.time() + COOLDOWN_SECONDS
+            errors.append(f"{model}: {type(exc).__name__} {str(exc)[:80]}")
+    raise RuntimeError("OmniRoute: all models failed (" + "; ".join(errors) + ")")
 
 
 def _generate_gemini(prompt, web_search, temperature, think):
@@ -180,6 +222,10 @@ def _configured_fallback_provider(primary: str) -> str | None:
 
 def _generate_with_provider(provider: str, prompt: str, web_search: bool,
                             temperature: float, think: bool) -> str:
+    if provider == "omniroute":
+        if not config.OMNIROUTE_API_KEY:
+            raise RuntimeError("OMNIROUTE_API_KEY not configured")
+        return _generate_omniroute(prompt, web_search, temperature, think)
     if provider == "gemini":
         return _generate_gemini(prompt, web_search, temperature, think)
     if provider == "nvidia":
@@ -190,40 +236,63 @@ def _generate_with_provider(provider: str, prompt: str, web_search: bool,
 
 
 # ----------------------------------------------------------------------- API
+PROVIDER_CHAINS = {
+    "omniroute": ["omniroute", "gemini", "nvidia"],
+    "gemini": ["gemini", "nvidia"],
+    "nvidia": ["nvidia"],
+}
+
+
+def _provider_available(provider: str) -> bool:
+    return bool({"omniroute": config.OMNIROUTE_API_KEY, "gemini": config.GEMINI_API_KEY,
+                 "nvidia": config.NVIDIA_API_KEY}.get(provider))
+
+
+# A provider that just failed with a quota/rate-limit/overload error is skipped for a few minutes, so one
+# briefing does not spend minutes retrying an exhausted provider on every call.
+COOLDOWN_SECONDS = 300
+_cooldown_until: dict[str, float] = {}
+_COOLDOWN_MARKERS = ("429", "ratelimit", "rate limit", "quota", "503", "unavailable", "overloaded", "high demand", "504")
+
+
+def _cools_down(exc: Exception) -> bool:
+    return isinstance(exc, LLMQuotaExceededError) or any(m in str(exc).lower() for m in _COOLDOWN_MARKERS)
+
+
 def generate(prompt: str, web_search: bool = False, temperature: float = 0.7,
              think: bool = True, provider: str | None = None) -> GenerateResult:
+    """Generate text. With no explicit provider, falls down the chain omniroute -> gemini -> nvidia
+    (starting at the configured primary), skipping providers without a key."""
     explicit_provider = provider is not None
-    active_provider = (provider if explicit_provider else PROVIDER).strip().lower()
-    provider_used = active_provider
-    try:
-        text = _generate_with_provider(active_provider, prompt, web_search, temperature, think)
-    except Exception as e:
-        is_quota = isinstance(e, LLMQuotaExceededError)
-        fallback = _configured_fallback_provider(active_provider)
-        can_fallback = (
-            not explicit_provider
-            and active_provider == "gemini"
-            and fallback == "nvidia"
-            and bool(config.NVIDIA_API_KEY)
-        )
+    primary = (provider if explicit_provider else PROVIDER).strip().lower()
+    chain = [primary] if explicit_provider else [
+        p for p in PROVIDER_CHAINS.get(primary, [primary]) if p == primary or _provider_available(p)]
+    if not explicit_provider:
+        now = time.time()
+        ready = [p for p in chain if _cooldown_until.get(p, 0) <= now]
+        chain = ready or chain                                  # never leave the chain empty
+    if web_search and not explicit_provider and "gemini" in chain and chain[0] != "gemini":
+        # only Gemini can really search the web; the others would answer from memory and call it search
+        chain = ["gemini"] + [p for p in chain if p != "gemini"]
 
-        if can_fallback:
-            if is_quota:
-                print("[llm] gemini quota exhausted — falling back to nvidia")
-            else:
-                print(f"[llm] gemini failed ({str(e)[:120]}) — falling back to nvidia")
-            text = _generate_with_provider("nvidia", prompt, web_search, temperature, think)
-            provider_used = "nvidia"
-        elif is_quota:
-            raise RuntimeError(
-                "LLM quota exhausted for provider 'gemini'. "
-                "No fallback provider is configured."
-            ) from e
-        else:
-            raise
-
-    text = (text or "").strip()
-    if not text:
-        raise RuntimeError(f"LLM ({provider_used}) returned empty response")
-    search_grounded = bool(web_search and provider_used == "gemini")
-    return GenerateResult(text, provider=provider_used, search_grounded=search_grounded)
+    last_error: Exception | None = None
+    for i, active in enumerate(chain):
+        try:
+            text = (_generate_with_provider(active, prompt, web_search, temperature, think) or "").strip()
+            if not text:
+                raise RuntimeError(f"LLM ({active}) returned empty response")
+            model = {"omniroute": _last_model.get("omniroute"), "gemini": config.GEMINI_MODEL,
+                     "nvidia": config.NVIDIA_MODEL}.get(active) or ""
+            return GenerateResult(text, provider=active, search_grounded=bool(web_search and active == "gemini"),
+                                  model=model)
+        except Exception as exc:
+            last_error = exc
+            if not explicit_provider and _cools_down(exc):
+                _cooldown_until[active] = time.time() + COOLDOWN_SECONDS
+            nxt = chain[i + 1] if i + 1 < len(chain) else None
+            kind = "quota exhausted" if isinstance(exc, LLMQuotaExceededError) else f"failed ({str(exc)[:120]})"
+            if nxt:
+                print(f"[llm] {active} {kind} - falling back to {nxt}")
+    if isinstance(last_error, LLMQuotaExceededError):
+        raise RuntimeError(f"LLM quota exhausted for provider '{chain[-1]}'. No fallback provider is configured.") from last_error
+    raise last_error

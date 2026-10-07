@@ -7,10 +7,12 @@
 3. EVIDENCE DOSSIER: Synthesized into structured evidence without fabrication.
    If evidence is unavailable for an item, it is explicitly omitted.
 """
+import re
 import time
 import xml.etree.ElementTree as ET
 import requests
 
+from life_agent import browseros
 from life_agent.agent import llm
 
 
@@ -58,21 +60,117 @@ def plan_queries(goal: str, n: int = 4) -> list[str]:
     return queries[:n]
 
 
-def search_one(query: str) -> str:
+SEARCH_STAGGER_SECONDS = 1.5
+SEARCH_UNAVAILABLE = "NOTHING FOUND (live web search was unavailable)"
+
+
+def api_search(query: str, limit: int = 8) -> list[dict] | None:
+    """Real web results from a search API when a key is configured: TAVILY_API_KEY or BRAVE_API_KEY.
+    Returns [{title, url, snippet}] ([] if nothing found), or None when no key is set or the call failed."""
+    import os
+
+    tavily, brave = os.getenv("TAVILY_API_KEY", "").strip(), os.getenv("BRAVE_API_KEY", "").strip()
     try:
-        return llm.generate(
-            f"Search the web for: {query}\n\n"
-            "Report ONLY concrete, current findings: names, exact URLs, dates, "
-            "deadlines, eligibility, one-line substance of each item. "
-            "3-5 bullet findings. No fluff, no speculation, no invented links. "
-            "If nothing solid is found, reply exactly: NOTHING FOUND.",
-            web_search=True,
-            think=False,
-            temperature=0.3,
-        )
+        if tavily:
+            r = requests.post("https://api.tavily.com/search", timeout=25,
+                              headers={"Authorization": f"Bearer {tavily}"},
+                              json={"query": query, "max_results": limit, "search_depth": "basic"})
+            r.raise_for_status()
+            return [{"title": x.get("title", ""), "url": x.get("url", ""), "snippet": x.get("content", "")[:400]}
+                    for x in r.json().get("results", []) if str(x.get("url", "")).startswith("http")]
+        if brave:
+            r = requests.get("https://api.search.brave.com/res/v1/web/search", timeout=25,
+                             headers={"X-Subscription-Token": brave, "Accept": "application/json"},
+                             params={"q": query, "count": limit})
+            r.raise_for_status()
+            return [{"title": x.get("title", ""), "url": x.get("url", ""), "snippet": x.get("description", "")[:400]}
+                    for x in r.json().get("web", {}).get("results", []) if str(x.get("url", "")).startswith("http")]
     except Exception as e:
-        print(f"[research] web search note for '{query[:40]}': {e}")
-        return "NOTHING FOUND"
+        print(f"[research] search API failed for '{query[:40]}': {str(e)[:120]}")
+    return None
+
+
+_FACT_KEYS = re.compile(
+    r"(deadline|apply by|applications?\s+(?:are\s+)?(?:due|close|closed|open)|closes?|due\s+(?:on\s+)?[A-Z][a-z]+|rolling|"
+    r"eligib|open to|enrolled|undergraduate|graduate students?|recent graduates?|remote|online|stipend)", re.I)
+
+
+def page_facts(url: str, max_facts: int = 4, timeout: int = 12) -> list[str]:
+    """Short sentences from the opportunity's own page that state a deadline, status or eligibility rule.
+    Plain HTTP (no JavaScript); [] when the page cannot be read. These are quoted facts, never inferred."""
+    try:
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (life-agent research)"}, timeout=timeout)
+        if r.status_code >= 400:
+            return []
+        html = r.text
+    except Exception:
+        return []
+    html = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", html)
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+    facts: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+|\s{2,}", text):
+        s = sentence.strip()
+        if 25 <= len(s) <= 220 and _FACT_KEYS.search(s) and re.search(r"\d{1,2}\s*(?:st|nd|rd|th)?\b|20\d\d|closed|rolling|open", s, re.I):
+            if s not in facts:
+                facts.append(s)
+        if len(facts) >= max_facts:
+            break
+    return facts
+
+
+def _summarize_results(query: str, hits: list[dict]) -> str:
+    from concurrent.futures import ThreadPoolExecutor
+
+    top = hits[:4]                                       # read the top pages themselves: snippets rarely carry deadlines
+    with ThreadPoolExecutor(max_workers=4) as pool:      # in parallel: one slow site no longer stalls the others
+        all_facts = list(pool.map(lambda h: page_facts(h["url"]), top))
+    for h, facts in zip(top, all_facts):
+        if facts:
+            h["snippet"] = (h["snippet"] + " || PAGE SAYS: " + " | ".join(facts))[:900]
+    listing = "\n".join(f"- {h['title']} | {h['url']} | {h['snippet']}" for h in hits)
+    return llm.generate(
+        f"Search query: {query}\n\nReal search results (the ONLY sources you may use):\n{listing}\n\n"
+        "Where a result has 'PAGE SAYS:' text, that is quoted from the opportunity's own page: use it for the deadline, "
+        "open/closed status and eligibility, and if it contradicts itself (for example a future deadline next to "
+        "'applications closed'), report both statements as written. "
+        "From these results only, list the concrete opportunities or findings: name, the exact URL from the list, "
+        "deadline or date if the snippet states one, eligibility if stated. Do not add anything the results do not say. "
+        "Skip results that are not an actual opportunity or finding. If none qualify, reply exactly: NOTHING FOUND.",
+        think=False, temperature=0.2,
+    )
+
+
+def search_one(query: str, attempts: int = 3) -> str:
+    """Grounded findings for one query. Order: a configured search API (real URLs, summarised strictly from what
+    came back), then Gemini web search. Results from a provider that cannot search (it would answer from memory)
+    are discarded; transient Gemini overloads are retried."""
+    hits = api_search(query)
+    if hits is None:
+        hits = browseros.search(query)          # free: a real search in the user's own BrowserOS browser
+    if hits is not None:
+        if not hits:
+            return "NOTHING FOUND"
+        try:
+            return _summarize_results(query, hits)
+        except Exception as e:
+            print(f"[research] summarising results note for '{query[:40]}': {str(e)[:120]}")
+    prompt = (
+        f"Search the web for: {query}\n\n"
+        "Report ONLY concrete, current findings: names, exact URLs, dates, "
+        "deadlines, eligibility, one-line substance of each item. "
+        "3-5 bullet findings. No fluff, no speculation, no invented links. "
+        "If nothing solid is found, reply exactly: NOTHING FOUND."
+    )
+    for i in range(attempts):
+        try:
+            res = llm.generate(prompt, web_search=True, think=False, temperature=0.3, provider="gemini")
+            if getattr(res, "search_grounded", False):
+                return res
+        except Exception as e:
+            print(f"[research] grounded search attempt {i + 1}/{attempts} for '{query[:40]}': {str(e)[:120]}")
+        if i + 1 < attempts:
+            time.sleep(4 * (i + 1))
+    return SEARCH_UNAVAILABLE
 
 
 def deep_research(goal: str, n_queries: int = 4) -> str:
@@ -96,19 +194,41 @@ def deep_research(goal: str, n_queries: int = 4) -> str:
         sections.append("### Verified Research Papers\n(arXiv query returned no items; omit paper section if no verified sources available)")
 
     # 2. Opportunities & News (Web searches)
+    _t = time.time()
     queries = plan_queries(goal, n_queries)
+    print(f"[time] planned queries in {time.time() - _t:.0f}s")
     web_findings = []
+    unavailable = 0
     for q in queries:
         print(f"[research] searching: {q}")
-        time.sleep(2)  # courteous pacing to protect rate limits
-        finding = search_one(q)
-        if finding and "NOTHING FOUND" not in finding and "(search failed" not in finding:
+
+    def _one(indexed):
+        i, q = indexed
+        time.sleep(i * SEARCH_STAGGER_SECONDS)    # stagger the start so the browser and the model are not hit at once
+        started = time.time()
+        found = search_one(q)
+        print(f"[time] search {i + 1}/{len(queries)} took {time.time() - started:.0f}s")
+        return found
+
+    # Searches are independent, so run a few at a time (each uses its own BrowserOS tab and a model call):
+    # sequentially they took 45-95 s each, about 7 minutes in total.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        findings = list(pool.map(_one, enumerate(queries)))
+    for q, finding in zip(queries, findings):
+        if finding == SEARCH_UNAVAILABLE:
+            unavailable += 1
+        elif finding and "NOTHING FOUND" not in finding and "(search failed" not in finding:
             web_findings.append(f"#### Query: {q}\n{finding}")
 
     if web_findings:
         sections.append("### Verified Web Opportunities & Industry News\n" + "\n\n".join(web_findings))
     else:
-        sections.append("### Verified Web Opportunities\n(No verified live web listings captured today; omit opportunities rather than inventing)")
+        why = (f"Live web search was unavailable for {unavailable} of {len(queries)} queries (Gemini overloaded or no key)."
+               if unavailable else "The searches ran but returned nothing concrete.")
+        sections.append("### Verified Web Opportunities\n(No verified live web listings captured today; omit opportunities rather than inventing)\n"
+                        f"[search status] {why}")
 
     dossier = "\n\n".join(sections).strip()
     if not dossier:

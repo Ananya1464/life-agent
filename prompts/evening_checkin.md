@@ -1,5 +1,10 @@
 Today is {{TODAY_LABEL}}. Write the daily evening check-in for Ananya's weight-loss plan (goal: 83 kg → 53–58 kg, vegetarian). This is a short, warm accountability nudge that will appear in her Notion Daily Log where she can review and answer it.
 
+WHAT HER FOCUS TIMER SHOWED THIS WEEK (computed facts; may be empty):
+{{ACTIVITY_PATTERNS}}
+
+If facts are listed above, weave AT MOST ONE into the greeting or the reflection question, kindly and specifically (celebrate a pattern, or gently ask about a task she stopped early). If the block is empty, ignore it. Never invent numbers and never use guilt or shame.
+
 Produce the check-in with exactly this structure:
 
 1. A one-line personalised greeting (vary it day to day, warm not preachy).

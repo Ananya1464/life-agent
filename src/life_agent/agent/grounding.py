@@ -194,3 +194,42 @@ def check_grounding(output: str, context: str) -> list[str]:
         unmatched.append(entity)
 
     return unmatched
+
+
+_HARD_PATTERNS = (
+    r"\b(?:Prof\.|Professor|Dr\.)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b",                              # titled people
+    r"\b(?:alumni contact|advisor|collaborator|recruiter)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b",     # named contacts
+    r"\b[A-Z]{2,}-\d{3,}-\d+\b",                                                                          # requisition codes
+    r"\b(?:arXiv:)?\d{4}\.\d{4,5}(?:v\d+)?\b",                                                            # arXiv ids
+    r"https?://[^\s)\]]+",                                                                                # links
+)
+
+
+def _hard_entities(text: str) -> set[str]:
+    """Things that must never be invented: people, contacts, job codes, paper ids and links (not program titles)."""
+    found: set[str] = set()
+    for pattern in _HARD_PATTERNS:
+        flags = re.IGNORECASE if "advisor" in pattern else 0
+        for m in re.finditer(pattern, text, flags):
+            found.add(m.group(0).strip().lower())
+            if m.groups():
+                found.add(m.group(1).strip().lower())
+    return found
+
+
+def scrub_ungrounded(text: str, context: str) -> tuple[str, list[str]]:
+    """Remove every line that names a person, contact, code, paper id or link that is not in `context`.
+
+    Program, paper and company titles are deliberately NOT scrubbed: the model may reword those and the reviewer
+    checks them. Returns (clean_text, ungrounded_entities). This is the hard stop behind the anti-invention prompt
+    rules: a made-up advisor can never reach Ananya, whatever the model wrote.
+    """
+    strip_chars = "\"'()[]{}.,;: "
+    hard = _hard_entities(text)
+    unmatched = [e for e in check_grounding(text, context)
+                 if e.strip().lower() in hard or e.strip(strip_chars).lower() in hard]
+    if not unmatched:
+        return text, []
+    needles = [e.strip(strip_chars).lower() for e in unmatched if e.strip(strip_chars)]
+    kept = [line for line in text.splitlines() if not any(n in line.lower() for n in needles)]
+    return "\n".join(kept).strip(), unmatched

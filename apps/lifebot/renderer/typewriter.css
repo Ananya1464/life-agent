@@ -1,0 +1,126 @@
+@font-face { font-family: "Press Start 2P"; src: url("../assets/fonts/PressStart2P-Regular.ttf") format("truetype"); font-display: block; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 290px; height: 340px; overflow: hidden; background: transparent; }
+body { font-family: "Press Start 2P", Consolas, "Courier New", monospace; -webkit-app-region: drag; user-select: none; }
+
+/* Palette taken from the original typewriter app: paper #F5EDE0, ink #1A1A1A, chassis #C1443C */
+.card { width: 290px; height: 340px; padding: 6px 10px 0; display: flex; flex-direction: column; filter: drop-shadow(0 6px 8px rgba(0,0,0,.28)); }
+
+.paper {
+  flex: 1; min-height: 0; padding: 10px 12px 8px; background: #F5EDE0; color: #1A1A1A;
+  border: 3px solid #1A1A1A; border-bottom: none; display: flex; flex-direction: column; gap: 5px;
+}
+.paper-top { display: flex; justify-content: space-between; font-size: 7px; letter-spacing: .04em; color: #7A6F65; }
+.status { color: #2f7d32; }
+.status.err { color: #b3261e; }
+.dots { font-size: 7px; color: #8C7B6B; overflow: hidden; white-space: nowrap; line-height: 1; }
+
+.task-view, .task-editor {
+  -webkit-app-region: no-drag; flex: 1; min-height: 0; width: 100%;
+  font: 10px/1.8 "Press Start 2P", Consolas, monospace; color: #1A1A1A;
+  overflow-y: auto; overflow-wrap: anywhere; user-select: text;
+}
+.task-view { cursor: text; border: 2px dashed transparent; padding: 2px 3px; border-radius: 2px; }
+.task-view:hover { border-color: #C9B9A3; }
+.task-view:focus-visible { outline: 2px solid #C1443C; outline-offset: 1px; }
+.task-view.done { color: #7A6F65; text-decoration: line-through; }
+.task-view.none { color: #8C7B6B; cursor: default; font-size: 9px; }
+.task-editor { border: 2px solid #1A1A1A; background: #fffaf0; padding: 3px; resize: none; outline: none; }
+.task-editor:focus { border-color: #C1443C; }
+.error { -webkit-app-region: no-drag; font-size: 7px; line-height: 1.6; color: #b3261e; }
+.hint { font-size: 6px; color: #8C7B6B; line-height: 1.5; }
+
+.roller { height: 12px; background: #1A1A1A; margin: 0 -4px; border-radius: 6px; padding: 4px 14px; }
+.slit { height: 4px; background: #000; border-radius: 2px; box-shadow: inset 0 1px 0 #333; }
+
+.chassis {
+  height: 32px; background: #C1443C; border: 3px solid #1A1A1A; border-top: none;
+  border-radius: 0 0 14px 14px; display: flex; align-items: center; justify-content: center; gap: 7px;
+  box-shadow: inset 0 -4px 0 #9c342d;
+}
+.key { width: 14px; height: 14px; border-radius: 50%; background: #F5EDE0; border: 2px solid #1A1A1A; box-shadow: 0 2px 0 #1A1A1A; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---- controls, start button, mini mode ---- */
+.paper-top { align-items: center; }
+.ctl { display: flex; gap: 3px; -webkit-app-region: no-drag; }
+.wc-btn {
+  -webkit-app-region: no-drag; width: 18px; height: 18px; padding: 0; cursor: pointer;
+  font: 700 11px/1 Consolas, "Courier New", monospace; color: #1A1A1A; background: #fffaf0;
+  border: 2px solid #1A1A1A; border-radius: 0; box-shadow: 1px 1px 0 #1A1A1A;
+}
+.wc-btn:hover { background: #fff98a; }
+.wc-btn:focus-visible, .start-btn:focus-visible { outline: 2px solid #C1443C; outline-offset: 1px; }
+
+.bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bottom .status { color: #2f7d32; font-size: 7px; }
+.start-btn {
+  -webkit-app-region: no-drag; cursor: pointer; padding: 5px 8px; font: 8px "Press Start 2P", Consolas, monospace; color: #1A1A1A;
+  background: #a9e23d; border: 2px solid #1A1A1A; border-radius: 0; box-shadow: 0 3px 0 #1A1A1A;
+}
+.start-btn:hover:not(:disabled) { background: #c4f06a; }
+.start-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #1A1A1A; }
+.start-btn:disabled { background: #e3dccd; color: #8C7B6B; cursor: default; box-shadow: 0 3px 0 #b9ad98; border-color: #8C7B6B; }
+.start-btn.stop { background: #f3c9c4; color: #9c342d; }
+
+.mini-pill { display: none; }
+body.mini, body.mini .card { width: 230px; height: 50px; }
+body.mini.list, body.mini.list html { height: 214px; }
+html:has(body.mini.list) { height: 214px; }
+body.mini .card { display: none; }
+body.mini html, html:has(body.mini) { width: 230px; height: 50px; }
+body.mini .mini-pill {
+  display: flex; align-items: center; gap: 8px; width: 230px; height: 44px; margin-top: 3px; padding: 0 8px 0 10px;
+  background: #C1443C; border: 3px solid #1A1A1A; border-radius: 12px; box-shadow: inset 0 -4px 0 #9c342d, 0 3px 0 rgba(0,0,0,.25);
+  -webkit-app-region: drag;
+}
+.mini-key { width: 14px; height: 14px; border-radius: 50%; background: #F5EDE0; border: 2px solid #1A1A1A; box-shadow: 0 2px 0 #1A1A1A; flex: none; }
+.mini-text { flex: 1; min-width: 0; font: 7px "Press Start 2P", Consolas, monospace; color: #F5EDE0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* ---- inline length picker ---- */
+.picker { -webkit-app-region: no-drag; display: flex; flex-direction: column; gap: 3px; }
+.picker-row { display: flex; align-items: center; gap: 3px; }
+.picker .chip {
+  -webkit-app-region: no-drag; cursor: pointer; padding: 3px 4px; font: 7px "Press Start 2P", Consolas, monospace; color: #1A1A1A;
+  background: #fffaf0; border: 2px solid #1A1A1A; border-radius: 0; box-shadow: 1px 1px 0 #1A1A1A;
+}
+.picker .chip.on { background: #a9e23d; }
+.picker input { width: 40px; padding: 3px 2px; font: 8px "Press Start 2P", Consolas, monospace; border: 2px solid #1A1A1A; background: #fffaf0; color: #1A1A1A; border-radius: 0; }
+
+/* an author display rule must not defeat the hidden attribute */
+.picker[hidden], .error[hidden], .task-editor[hidden], .task-view[hidden] { display: none !important; }
+
+
+/* ---- task list (expanded card and the minimized pill's drop-down) ---- */
+.task-view { flex: 0 0 auto; max-height: 74px; }
+.task-editor { flex: 0 0 auto; height: 74px; }
+.list-head { font-size: 6px; color: #7A6F65; letter-spacing: .04em; display: flex; justify-content: space-between; border-top: 2px dashed #C9B9A3; padding-top: 4px; }
+.tasklist { -webkit-app-region: no-drag; list-style: none; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.task-row { display: flex; align-items: center; gap: 4px; }
+.task-row .row-text {
+  -webkit-app-region: no-drag; flex: 1; min-width: 0; text-align: left; cursor: pointer; padding: 3px 4px;
+  font: 7px/1.5 "Press Start 2P", Consolas, monospace; color: #1A1A1A; background: transparent;
+  border: 2px solid transparent; border-radius: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.task-row .row-text:hover { border-color: #C9B9A3; }
+.task-row.current .row-text { background: #fff98a; border-color: #1A1A1A; }
+.task-row.checked .row-text { color: #8C7B6B; text-decoration: line-through; }
+.task-row .row-go { padding: 3px 5px; font-size: 7px; flex: none; }
+.task-row .row-run { font-size: 7px; color: #9c342d; flex: none; }
+.list-empty { font-size: 7px; color: #8C7B6B; padding: 4px; }
+
+.mini-tasklist {
+  display: none; width: 230px; height: 158px; margin-top: 4px; padding: 6px; background: #F5EDE0;
+  border: 3px solid #1A1A1A; box-shadow: 0 3px 0 rgba(0,0,0,.25);
+}
+body.mini.list .mini-tasklist { display: flex; }
+body.mini.list .mini-tasklist[hidden] { display: flex; }
+
+.task-row .row-del {
+  -webkit-app-region: no-drag; flex: none; width: 18px; height: 18px; padding: 0; cursor: pointer; font: 700 9px/1 Consolas, monospace;
+  color: #9c342d; background: #fffaf0; border: 2px solid #1A1A1A; border-radius: 0; box-shadow: 1px 1px 0 #1A1A1A;
+}
+.task-row .row-del:hover, .task-row .row-del.armed { background: #f3c9c4; }

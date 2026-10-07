@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(os.getcwd()) / "src"))
 
 from life_agent.events import event_model, queries
 
-def test_pomodoro_session_recovery():
+def test_pomodoro_session_recovery(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # the ledger path is relative: never write to the real data/events.jsonl
     """
     One real session becomes one deterministically recoverable event.
     """
