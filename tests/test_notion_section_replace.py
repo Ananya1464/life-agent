@@ -50,3 +50,29 @@ def test_replace_section_deletes_every_old_block_and_inserts_after_the_heading(m
     assert deleted == ["p1", "d-inner1", "h-opps", "p2", "d-inner2", "h-mkt", "p3"]
     patch = [kw for m, p, kw in calls if m == "PATCH"][0]
     assert patch["json"]["after"] == "h-edge"
+
+
+def test_append_to_database_falls_back_to_a_data_source_parent_when_the_id_is_a_data_source(monkeypatch):
+    sent = []
+
+    def fake_req(method, path, **kw):
+        sent.append(kw["json"]["parent"])
+        if "database_id" in kw["json"]["parent"]:
+            raise RuntimeError('Notion POST /pages failed 404: {"code":"object_not_found","message":"Could not find database with ID"}')
+        return {"id": "new-page"}
+
+    monkeypatch.setattr(notion_api, "_req", fake_req)
+    assert notion_api.append_to_database("data-source-id", {"Name": {}}) == "new-page"
+    assert sent == [{"database_id": "data-source-id"}, {"type": "data_source_id", "data_source_id": "data-source-id"}]
+
+
+def test_append_to_database_uses_the_database_parent_when_it_works_and_reraises_other_errors(monkeypatch):
+    calls = []
+    monkeypatch.setattr(notion_api, "_req", lambda m, p, **kw: calls.append(kw["json"]["parent"]) or {"id": "p"})
+    assert notion_api.append_to_database("real-db-id", {}) == "p" and calls == [{"database_id": "real-db-id"}]
+    monkeypatch.setattr(notion_api, "_req", lambda m, p, **kw: (_ for _ in ()).throw(RuntimeError("Notion POST /pages failed 500: boom")))
+    try:
+        notion_api.append_to_database("x", {})
+        raise AssertionError("should have raised")
+    except RuntimeError as err:
+        assert "500" in str(err)

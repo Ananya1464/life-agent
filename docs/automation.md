@@ -25,4 +25,4 @@ If you prefer to keep all execution on a local machine (e.g., a home server or a
    0 21 * * * cd /path/to/life-agent && python -m life_agent.agent.main evening_checkin
    ```
 
-*(See `run_daily.bat` and `run_task.bat` for Windows wrapper scripts).*
+*(On Windows, Lifebot runs these tasks itself at the same times: Briefings tab. Run one by hand with `python -m life_agent.agent.main <task>`.)*

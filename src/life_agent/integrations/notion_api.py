@@ -290,10 +290,15 @@ def write_brain_dump(content: str):
 def append_to_database(database_id: str, properties: dict) -> str:
     """Create a new row in any Notion database with the given properties.
     Returns the new page id."""
-    page = _req("POST", "/pages", json={
-        "parent": {"database_id": database_id},
-        "properties": properties,
-    })
+    try:
+        page = _req("POST", "/pages", json={"parent": {"database_id": database_id}, "properties": properties})
+    except RuntimeError as err:
+        # Some of our config ids are DATA SOURCE ids (the same id the /data_sources/.../query calls use). Notion answers
+        # 404 "Could not find database" when such an id is used as a database parent (this broke the metrics rows).
+        if "404" not in str(err) and "validation_error" not in str(err):
+            raise
+        page = _req("POST", "/pages", json={"parent": {"type": "data_source_id", "data_source_id": database_id},
+                                            "properties": properties})
     return page["id"]
 
 
