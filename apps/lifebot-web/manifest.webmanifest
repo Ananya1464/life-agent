@@ -1,0 +1,15 @@
+{
+  "name": "Lifebot",
+  "short_name": "Lifebot",
+  "description": "Tasks, focus timer, reminders and briefings from your Obsidian vault.",
+  "start_url": "/#chat",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5EDE0",
+  "theme_color": "#397d22",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

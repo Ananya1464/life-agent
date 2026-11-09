@@ -1,0 +1,181 @@
+/* The original pixel avocado, shared with the floating timer (generated from apps/pomodoro/renderer/index.html). */
+window.AVOCADO_SVG = `<svg class="avocado-svg" viewBox="0 0 266 322" width="266" height="322" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+      <defs>
+        <!-- Pixel Shadow Pattern -->
+        <filter id="pixel-shadow">
+          <feDropShadow dx="0" dy="4" stdDeviation="0" flood-color="#0c123d" flood-opacity="0.2" />
+        </filter>
+      </defs>
+
+      <!-- Soft base shadow ellipse -->
+      <ellipse cx="133" cy="292" rx="76" ry="10" fill="#0c123d" opacity="0.22" />
+
+      <!-- Sprouts on Top of Avocado -->
+      <g class="sprouts">
+      <!-- Left Leaf -->
+      <path d="M 124 24 H 132 V 28 H 130 V 46 H 126 V 28 H 124 Z" fill="#0c123d" />
+      <path d="M 112 30 H 124 V 36 H 122 V 42 H 116 V 36 H 112 Z" fill="#0c123d" />
+      <rect x="114" y="32" width="8" height="6" fill="#397d22" />
+      <rect x="116" y="34" width="6" height="4" fill="#72bd27" />
+      <rect x="118" y="34" width="2" height="2" fill="#a9e23d" />
+      <!-- Right Leaf -->
+      <path d="M 134 24 H 142 V 28 H 140 V 46 H 136 V 28 H 134 Z" fill="#0c123d" />
+      <path d="M 142 30 H 154 V 36 H 150 V 42 H 144 V 36 H 142 Z" fill="#0c123d" />
+      <rect x="144" y="32" width="8" height="6" fill="#397d22" />
+      <rect x="144" y="34" width="6" height="4" fill="#72bd27" />
+      <rect x="146" y="34" width="2" height="2" fill="#a9e23d" />
+      <!-- Stem Base -->
+      <rect x="130" y="44" width="6" height="6" fill="#0c123d" />
+      </g>
+
+      <!-- Outer Navy Border (#0c123d) -->
+      <!-- Pear shape profile from y=48 to y=284 -->
+      <!-- Top curve -->
+      <rect x="108" y="48" width="50" height="6" fill="#0c123d" />
+      <rect x="98" y="54" width="10" height="6" fill="#0c123d" />
+      <rect x="158" y="54" width="10" height="6" fill="#0c123d" />
+      <rect x="92" y="60" width="6" height="12" fill="#0c123d" />
+      <rect x="168" y="60" width="6" height="12" fill="#0c123d" />
+      <rect x="86" y="72" width="6" height="20" fill="#0c123d" />
+      <rect x="174" y="72" width="6" height="20" fill="#0c123d" />
+      <rect x="80" y="92" width="6" height="26" fill="#0c123d" />
+      <rect x="180" y="92" width="6" height="26" fill="#0c123d" />
+      
+      <!-- Belly expansion -->
+      <rect x="74" y="118" width="6" height="24" fill="#0c123d" />
+      <rect x="186" y="118" width="6" height="24" fill="#0c123d" />
+      <rect x="66" y="142" width="8" height="24" fill="#0c123d" />
+      <rect x="192" y="142" width="8" height="24" fill="#0c123d" />
+      <rect x="60" y="166" width="6" height="46" fill="#0c123d" />
+      <rect x="200" y="166" width="6" height="46" fill="#0c123d" />
+      <rect x="62" y="212" width="6" height="30" fill="#0c123d" />
+      <rect x="198" y="212" width="6" height="30" fill="#0c123d" />
+      <rect x="68" y="242" width="8" height="20" fill="#0c123d" />
+      <rect x="190" y="242" width="8" height="20" fill="#0c123d" />
+      <rect x="76" y="262" width="14" height="12" fill="#0c123d" />
+      <rect x="176" y="262" width="14" height="12" fill="#0c123d" />
+      <rect x="90" y="274" width="22" height="8" fill="#0c123d" />
+      <rect x="154" y="274" width="22" height="8" fill="#0c123d" />
+      <rect x="112" y="280" width="42" height="6" fill="#0c123d" />
+
+      <!-- Layer 1: Dark Green Skin (#397d22) -->
+      <rect x="108" y="54" width="50" height="6" fill="#397d22" />
+      <rect x="98" y="60" width="70" height="6" fill="#397d22" />
+      <rect x="92" y="66" width="82" height="12" fill="#397d22" />
+      <rect x="86" y="78" width="94" height="20" fill="#397d22" />
+      <rect x="80" y="98" width="106" height="26" fill="#397d22" />
+      <rect x="74" y="124" width="118" height="24" fill="#397d22" />
+      <rect x="66" y="148" width="134" height="24" fill="#397d22" />
+      <rect x="66" y="172" width="134" height="44" fill="#397d22" />
+      <rect x="68" y="216" width="130" height="28" fill="#397d22" />
+      <rect x="76" y="244" width="114" height="20" fill="#397d22" />
+      <rect x="88" y="264" width="90" height="12" fill="#397d22" />
+      <rect x="108" y="276" width="50" height="4" fill="#397d22" />
+
+      <!-- Layer 2: Mid Green Skin (#72bd27) -->
+      <rect x="110" y="58" width="46" height="6" fill="#72bd27" />
+      <rect x="100" y="64" width="66" height="6" fill="#72bd27" />
+      <rect x="96" y="70" width="74" height="12" fill="#72bd27" />
+      <rect x="90" y="82" width="86" height="18" fill="#72bd27" />
+      <rect x="84" y="100" width="98" height="26" fill="#72bd27" />
+      <rect x="78" y="126" width="110" height="24" fill="#72bd27" />
+      <rect x="70" y="150" width="126" height="24" fill="#72bd27" />
+      <rect x="70" y="174" width="126" height="42" fill="#72bd27" />
+      <rect x="72" y="216" width="122" height="26" fill="#72bd27" />
+      <rect x="80" y="242" width="106" height="18" fill="#72bd27" />
+      <rect x="92" y="260" width="82" height="12" fill="#72bd27" />
+
+      <!-- Layer 3: Bright Light Green Skin (#a9e23d) -->
+      <rect x="112" y="62" width="42" height="6" fill="#a9e23d" />
+      <rect x="104" y="68" width="58" height="6" fill="#a9e23d" />
+      <rect x="100" y="74" width="66" height="10" fill="#a9e23d" />
+      <rect x="94" y="84" width="78" height="18" fill="#a9e23d" />
+      <rect x="88" y="102" width="90" height="26" fill="#a9e23d" />
+      <rect x="82" y="128" width="102" height="24" fill="#a9e23d" />
+      <rect x="74" y="152" width="118" height="24" fill="#a9e23d" />
+      <rect x="74" y="176" width="118" height="38" fill="#a9e23d" />
+      <rect x="76" y="214" width="114" height="26" fill="#a9e23d" />
+      <rect x="84" y="240" width="98" height="18" fill="#a9e23d" />
+      <rect x="96" y="258" width="74" height="10" fill="#a9e23d" />
+
+      <!-- Flesh: Pale Creamy Yellow (#fff98a, shaded with #eef36a) -->
+      <rect x="114" y="66" width="38" height="6" fill="#fff98a" />
+      <rect x="106" y="72" width="54" height="6" fill="#fff98a" />
+      <rect x="102" y="78" width="62" height="8" fill="#fff98a" />
+      <rect x="96" y="86" width="74" height="18" fill="#fff98a" />
+      <rect x="90" y="104" width="86" height="26" fill="#fff98a" />
+      <rect x="84" y="130" width="98" height="24" fill="#fff98a" />
+      <rect x="78" y="154" width="110" height="24" fill="#fff98a" />
+      <rect x="78" y="178" width="110" height="36" fill="#fff98a" />
+      <rect x="80" y="214" width="106" height="24" fill="#eef36a" />
+      <rect x="88" y="238" width="90" height="18" fill="#eef36a" />
+      <rect x="100" y="256" width="66" height="8" fill="#eef36a" />
+
+      <!-- Flesh Speckles -->
+      <rect x="102" y="92" width="2" height="2" fill="#e5d15c" opacity="0.6" />
+      <rect x="162" y="94" width="2" height="2" fill="#e5d15c" opacity="0.6" />
+      <rect x="88" y="142" width="2" height="2" fill="#e5d15c" opacity="0.6" />
+      <rect x="176" y="146" width="2" height="2" fill="#e5d15c" opacity="0.6" />
+      <rect x="86" y="228" width="2" height="2" fill="#d9c34e" opacity="0.6" />
+      <rect x="178" y="226" width="2" height="2" fill="#d9c34e" opacity="0.6" />
+
+      <!-- Kawaii Face Features (Eyes, Cheeks, Mouth) -->
+      <!-- Eyes (blink as a group) -->
+      <g class="eyes">
+        <rect x="104" y="112" width="12" height="14" fill="#0c123d" />
+        <rect x="105" y="113" width="4" height="5" fill="#ffffff" />
+        <rect x="150" y="112" width="12" height="14" fill="#0c123d" />
+        <rect x="151" y="113" width="4" height="5" fill="#ffffff" />
+        <!-- Excited extras: second sparkle highlight, shown only while celebrating -->
+        <g class="eyes-excited">
+          <rect x="111" y="119" width="3" height="3" fill="#ffffff" />
+          <rect x="157" y="119" width="3" height="3" fill="#ffffff" />
+        </g>
+      </g>
+
+      <!-- Left Cheek: Rosy Pink Square (#ff6584) -->
+      <rect x="94" y="126" width="10" height="8" fill="#ff6584" />
+
+      <!-- Right Cheek: Rosy Pink Square (#ff6584) -->
+      <rect x="162" y="126" width="10" height="8" fill="#ff6584" />
+
+      <!-- Happy pixel smile (default) -->
+      <g class="mouth-happy">
+        <rect x="124" y="122" width="4" height="3" fill="#0c123d" />
+        <rect x="128" y="125" width="10" height="3" fill="#0c123d" />
+        <rect x="138" y="122" width="4" height="3" fill="#0c123d" />
+      </g>
+
+      <!-- Hungry open mouth with tongue and a drool drop (celebration only) -->
+      <g class="mouth-hungry">
+        <rect x="124" y="121" width="18" height="3" fill="#0c123d" />
+        <rect x="122" y="124" width="22" height="9" fill="#0c123d" />
+        <rect x="126" y="133" width="14" height="3" fill="#0c123d" />
+        <rect x="127" y="128" width="12" height="5" fill="#ff6584" class="tongue" />
+        <rect x="131" y="127" width="4" height="2" fill="#ff9bb0" class="tongue" />
+        <rect x="144" y="127" width="4" height="4" fill="#9fe8ff" class="drool" />
+        <rect x="145" y="131" width="2" height="3" fill="#9fe8ff" class="drool" />
+      </g>
+
+      <!-- Twinkling sparkles around the head (celebration only) -->
+      <g class="sparkles">
+        <path d="M 70 88 h 4 v 4 h 4 v 4 h -4 v 4 h -4 v -4 h -4 v -4 h 4 z" fill="#ffd23f" class="sparkle s1" />
+        <path d="M 196 100 h 4 v 4 h 4 v 4 h -4 v 4 h -4 v -4 h -4 v -4 h 4 z" fill="#ffffff" class="sparkle s2" />
+        <path d="M 62 140 h 3 v 3 h 3 v 3 h -3 v 3 h -3 v -3 h -3 v -3 h 3 z" fill="#ff6584" class="sparkle s3" />
+      </g>
+
+      <!-- Snack thought bubble: a slice of toast (celebration only) -->
+      <g class="snack">
+        <rect x="204" y="52" width="48" height="40" fill="#0c123d" />
+        <rect x="206" y="54" width="44" height="36" fill="#ffffff" />
+        <rect x="196" y="96" width="6" height="6" fill="#0c123d" /><rect x="197" y="97" width="4" height="4" fill="#ffffff" />
+        <rect x="190" y="104" width="4" height="4" fill="#0c123d" /><rect x="191" y="105" width="2" height="2" fill="#ffffff" />
+        <rect x="214" y="60" width="28" height="24" fill="#0c123d" />
+        <rect x="216" y="62" width="24" height="20" fill="#e9b45a" />
+        <rect x="219" y="65" width="18" height="14" fill="#f6d28a" />
+        <rect x="222" y="70" width="2" height="2" fill="#c98a2f" /><rect x="230" y="73" width="2" height="2" fill="#c98a2f" />
+      </g>
+
+      <!-- Pit Rim Navy Ring (108x108 px circle outline at center 133, 206) -->
+      <circle cx="133" cy="206" r="54" fill="none" stroke="#0c123d" stroke-width="4" />
+    </svg>`;
