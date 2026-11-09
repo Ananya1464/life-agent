@@ -12,3 +12,5 @@ filter_repo_scrub.py
 src/*.egg-info/
 scratch/
 .freebuff/
+
+*.local.bat

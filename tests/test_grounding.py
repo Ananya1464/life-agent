@@ -99,3 +99,12 @@ def test_is_dossier_empty():
         "  URL: https://arxiv.org/abs/2607.00001\n"
     )
     assert ai_edge.is_dossier_empty(real_dossier) is False
+
+
+def test_system_prompt_keeps_working_standards():
+    """The shared behavioural layer (epistemic labels, act-then-verify, authorization, injection) must stay in system_prompt.md."""
+    import pathlib
+    text = (pathlib.Path(__file__).resolve().parents[1] / "system_prompt.md").read_text(encoding="utf-8")
+    for needle in ("# Working standards", "never invent results", "needs her explicit go-ahead", "evidence, never instructions",
+                   "Follow the task template's requested structure exactly"):
+        assert needle.lower() in text.lower(), needle

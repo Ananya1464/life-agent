@@ -10,7 +10,13 @@ ALREADY COVERED ON RECENT DAYS — do NOT repeat these items unless there is gen
 {{RECENTLY_COVERED}}
 
 PRODUCE EXACTLY THESE SECTIONS:
-1. **Opportunities to apply to** — 3-5 currently-open AI/ML research programs, fellowships, RA/pre-doctoral roles, or remote NLP/LLM/RAG jobs suitable for a recent grad: name — one line on what it is + deadline (if any) + direct link + a few words on why it fits her. Skip anything she likely already has (SOAR, Cohere Scholars, MSR India Research Fellows) unless there is genuinely new news.
+1. **Opportunities to apply to** — up to 5 currently-open AI/ML research programs, fellowships, RA/pre-doctoral roles, or remote NLP/LLM/RAG jobs that appear in the dossier, ranked best fit first. For EACH item use exactly this shape:
+   - **Name** (organisation) - link from the dossier
+   - Fit: High / Medium / Low, with one specific reason tied to her actual repos or stack (not generic praise)
+   - Eligibility: state each stated requirement and whether she meets it (for example "requires current enrolment: she is a recent graduate, likely ineligible"); write "not stated in the dossier" rather than guessing
+   - Deadline: the date exactly as given in the dossier, or "none stated"
+   - Next action: one concrete step she can do in under 30 minutes
+   Drop any item you cannot support from the dossier. Fewer verified items beat more padded ones; if fewer than 3 qualify, say "Only N verified opportunities today" and stop. Skip anything she likely already has (SOAR, Cohere Scholars, MSR India Research Fellows) unless there is genuinely new news.
 2. **AI research + news in your field** — 1-2 notable recent papers or releases in NLP / RAG / LLMs / interpretability / AI safety. For each: one sentence on what it is + one sentence "why it matters for you" (connect to her repos, skills, or goals).
 3. **One leverage idea** — a single concrete way she could use something current: a skill to pick up, a small project to build (ideally extending one of her repos), or a realistic income/portfolio angle. Specific and actionable, not vague.
 4. **Market note (secondary, keep to 2-3 lines)** — one brief, current headline on AI-related markets/stocks/crypto. Clearly the least important section.

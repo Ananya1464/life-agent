@@ -363,14 +363,11 @@ def update_daily_metrics(day=None) -> dict:
         if existing:
             notion_api._req("PATCH", f"/pages/{existing['id']}", json={"properties": props})
         else:
-            notion_api._req("POST", "/pages", json={
-                "parent": {"database_id": config.LIFE_OS_METRICS_DB_ID},
-                "properties": props,
-            })
+            notion_api.append_to_database(config.LIFE_OS_METRICS_DB_ID, props)      # accepts a database id or a data source id
     except RuntimeError as e:
         msg = str(e)
         if "404" in msg or "object_not_found" in msg:
-            print(f"[metrics] LIFE_OS_METRICS_DB_ID not accessible (share the DB with the integration) — skipping: {msg[:200]}")
+            print(f"[metrics] metrics database not reachable (check the id, and that the database is shared with the integration) — skipping: {msg[:200]}")
         else:
             raise
     return row

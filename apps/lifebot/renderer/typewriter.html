@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:">
+  <title>Typewriter</title>
+  <link rel="stylesheet" href="typewriter.css">
+</head>
+<body>
+  <div class="card">
+    <div class="paper">
+      <div class="paper-top">
+        <span>CURRENT TASK</span>
+        <span class="ctl">
+          <button class="wc-btn" id="wc-home" title="Open Lifebot" aria-label="Open Lifebot">&#8962;</button>
+          <button class="wc-btn" id="wc-min" title="Minimize to a small icon" aria-label="Minimize to a small icon">&#8211;</button>
+          <button class="wc-btn" id="wc-hide" title="Hide to the tray" aria-label="Hide to the tray">&#215;</button>
+        </span>
+      </div>
+      <div class="dots" aria-hidden="true">........................</div>
+      <div id="view" class="task-view" tabindex="0" role="button" aria-label="Edit the current task"></div>
+      <textarea id="editor" class="task-editor" rows="4" hidden aria-label="Current task text" spellcheck="false"></textarea>
+      <div id="error" class="error" role="alert" hidden></div>
+      <div class="bottom">
+        <button id="start" class="start-btn" type="button">&#9654; START</button>
+        <span id="status" class="status" role="status" aria-live="polite"></span>
+      </div>
+      <div id="hint" class="hint"></div>
+      <div class="list-head">TODAY'S TASKS <span id="list-count"></span></div>
+      <ul id="tasklist" class="tasklist" aria-label="All tasks"></ul>
+      <div id="picker" class="picker" hidden>
+        <div class="picker-row">
+          <button class="chip" type="button" data-m="15">15</button>
+          <button class="chip" type="button" data-m="25">25</button>
+          <button class="chip" type="button" data-m="45">45</button>
+          <button class="chip" type="button" data-m="60">60</button>
+          <input id="picker-min" type="number" min="1" max="180" aria-label="Minutes">
+          <button id="picker-go" class="start-btn" type="button">GO</button>
+        </div>
+        <div id="picker-note" class="hint"></div>
+      </div>
+    </div>
+    <div class="roller"><div class="slit"></div></div>
+    <div class="chassis" aria-hidden="true">
+      <span class="key"></span><span class="key"></span><span class="key"></span><span class="key"></span>
+      <span class="key"></span><span class="key"></span><span class="key"></span><span class="key"></span>
+    </div>
+  </div>
+
+  <!-- Mini mode: a small pill with the task (and time left) -->
+  <div class="mini-pill" id="mini">
+    <span class="mini-key" aria-hidden="true"></span>
+    <span class="mini-text" id="mini-text">No task</span>
+    <button class="wc-btn" id="mini-list-btn" title="Pick a task to start" aria-label="Pick a task to start" aria-expanded="false">&#9660;</button>
+    <button class="wc-btn" id="wc-expand" title="Expand" aria-label="Expand the typewriter card">&#9633;</button>
+  </div>
+  <ul id="mini-tasklist" class="tasklist mini-tasklist" aria-label="Start a task" hidden></ul>
+  <script src="typewriter.js"></script>
+</body>
+</html>

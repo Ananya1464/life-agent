@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lifebot</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="titlebar"><span class="titlebar-name">Lifebot</span></div>
+  <div class="hud" id="hud" aria-label="Your progress">
+    <div class="hud-item"><span id="hud-gem"></span><div><div class="hud-big" id="hud-total">0</div><div class="hud-sub" id="hud-today">DIAMONDS</div></div></div>
+    <div class="hud-level"><div class="hud-lv" id="hud-lv">LV 1</div><div class="xp" id="hud-xp"></div><div class="hud-sub" id="hud-xptext"></div></div>
+    <div class="hud-item"><span id="hud-flame"></span><div><div class="hud-big" id="hud-streak">0</div><div class="hud-sub">STREAK</div></div></div>
+    <button class="sound" id="sound-toggle" type="button" title="Sound effects: the little beeps and chimes when you finish things" aria-label="Toggle sound effects">SOUND ON</button>
+  </div>
+
+  <div class="app">
+    <nav class="sidebar">
+      <div class="brand">
+        <img src="../assets/icon.png" alt="" width="34" height="34">
+        <div><div class="brand-name">Lifebot</div><div class="brand-sub" id="today-label"></div></div>
+      </div>
+      <button class="nav active" data-tab="chat"><span class="ico">&#128172;</span>Lifebot</button>
+      <button class="nav" data-tab="tasks"><span class="ico">&#9998;</span>Typewriter<span class="badge" id="tasks-badge"></span></button>
+      <button class="nav" data-tab="focus"><span class="ico">&#9201;</span>Focus<span class="badge" id="focus-badge"></span></button>
+      <button class="nav" data-tab="reminders"><span class="ico">&#128276;</span>Reminders<span class="badge" id="rem-badge"></span></button>
+      <button class="nav" data-tab="briefings"><span class="ico">&#128220;</span>Briefings<span class="badge" id="brief-badge"></span></button>
+      <div class="spacer"></div>
+      <button class="side-action" id="open-dashboard">&#128202; Open dashboard</button>
+      <div class="status"><span class="dot" id="bridge-dot"></span><span id="bridge-text">Starting agent...</span></div>
+    </nav>
+
+    <main class="content">
+      <!-- CHAT -->
+      <section class="view active" id="view-chat">
+        <header class="view-head"><h1>Lifebot</h1><button class="ghost" id="chat-clear">Clear chat</button></header>
+        <div class="chat-log" id="chat-log"></div>
+        <div class="chips" id="chat-chips">
+          <button class="chip">What should I focus on today?</button>
+          <button class="chip">How has my focus been this week?</button>
+          <button class="chip">Remind me in 30 minutes to stretch</button>
+          <button class="chip">Add a task: review my notes</button>
+        </div>
+        <form class="chat-form" id="chat-form">
+          <textarea id="chat-input" rows="1" placeholder="Ask Lifebot anything, or tell it what to do..." maxlength="2000"></textarea>
+          <button class="primary" id="chat-send" type="submit">Send</button>
+        </form>
+      </section>
+
+      <!-- TYPEWRITER -->
+      <section class="view" id="view-tasks">
+        <header class="view-head">
+          <h1>Typewriter</h1>
+          <div class="head-right"><span id="tasks-summary" class="muted"></span><button class="ghost" id="md-toggle">Edit as text</button></div>
+        </header>
+        <div class="progress"><div class="progress-fill" id="tasks-progress"></div></div>
+        <form class="type-form" id="task-form">
+          <span class="caret">&gt;</span>
+          <input id="task-input" type="text" placeholder="Type a task and press Enter..." maxlength="200" autocomplete="off">
+        </form>
+        <div class="task-list" id="task-list"></div>
+        <div class="md-pane" id="md-pane" hidden>
+          <textarea id="md-editor" spellcheck="false"></textarea>
+          <div class="row"><span class="muted">Markdown checklist: lines starting with - [ ] are tasks. ## makes a heading.</span><button class="primary" id="md-save">Save</button></div>
+        </div>
+      </section>
+
+      <!-- FOCUS -->
+      <section class="view" id="view-focus">
+        <header class="view-head"><h1>Focus</h1><span class="muted" id="focus-stats"></span></header>
+        <div class="focus-wrap">
+          <div class="stage" id="stage" role="img" aria-label="Avocado timer">
+            <div class="pit" id="pit">
+              <div class="pit-task" id="focus-task">PICK A TASK</div>
+              <div class="pit-time" id="focus-time">25:00</div>
+              <div class="pit-phase" id="focus-phase">READY</div>
+            </div>
+          </div>
+          <div class="focus-controls">
+            <select id="focus-select" aria-label="Task to focus on"></select>
+            <button class="primary" id="focus-start">Start</button>
+            <button class="ghost" id="focus-pause" hidden>Pause</button>
+            <button class="ghost" id="focus-resume" hidden>Resume</button>
+            <button class="danger" id="focus-stop" hidden>Stop</button>
+            <button class="ghost small" id="focus-minus" hidden aria-label="Remove 5 minutes">-5 min</button>
+            <button class="ghost small" id="focus-plus" hidden aria-label="Add 5 minutes">+5 min</button>
+          </div>
+          <div class="focus-config muted">
+            <label>Focus <input type="number" id="cfg-focus" min="1" max="120"> min</label>
+            <label>Break <input type="number" id="cfg-break" min="1" max="120"> min</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- REMINDERS -->
+      <!-- BRIEFINGS: the agent's scheduled work, run by Lifebot itself -->
+      <section class="view" id="view-briefings">
+        <header class="view-head"><h1>Briefings</h1><div class="head-right"><span class="muted" id="brief-summary"></span></div></header>
+        <div class="muted brief-intro">Lifebot runs these for you at the times shown (and catches up if the PC was off). Notes are saved in your Obsidian vault under Briefings.</div>
+        <details class="card prefs" id="prefs">
+          <summary><strong>What do you want to know?</strong> <span class="muted" id="prefs-state"></span></summary>
+          <div class="prefs-body">
+            <div class="muted">Answer once; every briefing uses it. Change it any time.</div>
+            <fieldset><legend>1. What should I look for?</legend>
+              <label class="check"><input type="checkbox" name="wants" value="research_roles"> Research internships / RA roles</label>
+              <label class="check"><input type="checkbox" name="wants" value="remote_jobs"> Remote AI/ML jobs</label>
+              <label class="check"><input type="checkbox" name="wants" value="fellowships"> Fellowships and pre-doc programs</label>
+              <label class="check"><input type="checkbox" name="wants" value="masters_phd"> Masters / PhD programs</label>
+              <label class="check"><input type="checkbox" name="wants" value="scholarships"> Scholarships and funding</label>
+              <label class="check"><input type="checkbox" name="wants" value="conferences"> Conferences, workshops, calls for papers</label>
+              <label class="check"><input type="checkbox" name="wants" value="competitions"> Hackathons and competitions</label>
+              <label class="check"><input type="checkbox" name="wants" value="reading"> Reading lists, papers and courses</label>
+            </fieldset>
+            <fieldset><legend>2. Where?</legend>
+              <label class="check"><input type="checkbox" name="regions" value="India"> India</label>
+              <label class="check"><input type="checkbox" name="regions" value="Remote"> Remote</label>
+              <label class="check"><input type="checkbox" name="regions" value="USA"> USA</label>
+              <label class="check"><input type="checkbox" name="regions" value="UK"> UK</label>
+              <label class="check"><input type="checkbox" name="regions" value="Europe"> Europe</label>
+              <label class="check"><input type="checkbox" name="regions" value="Singapore"> Singapore</label>
+              <label class="check"><input type="checkbox" name="regions" value="Canada"> Canada</label>
+              <label class="check"><input type="checkbox" name="regions" value="Australia"> Australia</label>
+              <label class="check"><input type="checkbox" name="regions" value="Middle East"> Middle East</label>
+              <label class="check"><input type="checkbox" name="regions" value="Anywhere"> Anywhere</label>
+            </fieldset>
+            <label class="grow">3. Topics and skills to go deep on <input id="pref-topics" type="text" maxlength="300" placeholder="e.g. RAG, interpretability, AI safety, LLM evaluation"></label>
+            <label class="grow">4. Your situation (so I flag what you are not eligible for) <input id="pref-eligibility" type="text" maxlength="300" placeholder="e.g. recent BE grad, not enrolled, Mumbai"></label>
+            <label>5. Only deadlines within
+              <select id="pref-window"><option value="">no preference</option><option>2 weeks</option><option>1 month</option><option>2 months</option><option>3 months</option><option>6 months</option><option>any</option></select></label>
+            <label class="grow">6. Leave out <input id="pref-exclude" type="text" maxlength="200" placeholder="e.g. unpaid roles, roles needing a PhD, crypto"></label>
+            <div class="row"><button class="primary" id="prefs-save" type="button">Save my answers</button><span class="muted" id="prefs-msg"></span></div>
+          </div>
+        </details>
+        <div class="brief-list" id="brief-list"></div>
+      </section>
+
+      <section class="view" id="view-reminders">
+        <header class="view-head"><h1>Reminders</h1></header>
+        <form class="card rem-form" id="rem-form">
+          <input id="rem-text" type="text" placeholder="Remind me to..." maxlength="200" required>
+          <div class="row wrap">
+            <input id="rem-at" type="datetime-local" required>
+            <select id="rem-repeat"><option value="none">Once</option><option value="daily">Every day</option><option value="weekdays">Weekdays</option></select>
+            <button class="primary" type="submit">Add reminder</button>
+          </div>
+          <div class="row wrap quick">
+            <button type="button" class="chip" data-q="10m">+10 min</button>
+            <button type="button" class="chip" data-q="1h">+1 hour</button>
+            <button type="button" class="chip" data-q="tonight">Tonight 9pm</button>
+            <button type="button" class="chip" data-q="tomorrow">Tomorrow 9am</button>
+          </div>
+          <div class="error" id="rem-error" hidden></div>
+        </form>
+        <div class="rem-list" id="rem-list"></div>
+
+        <div class="card settings">
+          <h2>Notifications and startup</h2>
+          <label class="check"><input type="checkbox" id="set-notifications"> Windows desktop notifications</label>
+          <label class="check"><input type="checkbox" id="set-briefings"> Run the daily briefings automatically (opportunities, meals, plans, weekly career prep)</label>
+          <label class="check"><input type="checkbox" id="set-nudges"> Gentle prompts: nudge me to pick one task, start small, sort old tasks and wrap up (max 5 a day, quiet 22:00 to 08:00; snooze from the tray icon)</label>
+          <label class="check"><input type="checkbox" id="set-typewriter"> Show the floating typewriter card (current task, always on top)</label>
+          <label class="check"><input type="checkbox" id="set-avocado"> Show the floating avocado timer (always on top)</label>
+          <label class="check"><input type="checkbox" id="set-login"> Start Lifebot with Windows (lives in the system tray)</label>
+          <div class="row wrap">
+            <label class="grow">Phone push (ntfy.sh topic)
+              <input id="set-ntfy" type="text" placeholder="e.g. ananya-lifebot-8f3k2" maxlength="64" autocomplete="off"></label>
+            <button class="ghost" id="ntfy-save">Save</button>
+            <button class="ghost" id="ntfy-test">Send test</button>
+          </div>
+          <div class="muted" id="ntfy-msg">Install the free ntfy app on your phone and subscribe to the same topic. Use a hard-to-guess name: anyone who knows the topic can read it.</div>
+          <div class="row"><button class="ghost" id="sync-now">Sync focus data to Notion now</button><span class="muted" id="sync-msg"></span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="picker" role="dialog" aria-modal="true" aria-labelledby="picker-title" hidden>
+    <div class="modal-card">
+      <div class="modal-title" id="picker-title">How long should this focus session be?</div>
+      <div class="modal-task" id="picker-task"></div>
+      <div class="row wrap" id="picker-presets">
+        <button class="chip" type="button" data-m="15">15 min</button>
+        <button class="chip" type="button" data-m="25">25 min</button>
+        <button class="chip" type="button" data-m="45">45 min</button>
+        <button class="chip" type="button" data-m="60">60 min</button>
+      </div>
+      <div class="row">
+        <label class="muted">Minutes <input type="number" id="picker-minutes" min="1" max="180"></label>
+        <span class="muted" id="picker-hint"></span>
+      </div>
+      <div class="error" id="picker-error" hidden></div>
+      <div class="row">
+        <button class="primary" id="picker-go" type="button">&#9654; Start</button>
+        <button class="ghost" id="picker-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div class="toasts" id="toasts"></div>
+  <div class="alerts" id="alerts"></div>
+
+  <script src="../lib/reminders.js"></script>
+  <script src="../lib/pomodoro.js"></script>
+  <script src="avocado-art.js"></script>
+  <script src="pixel.js"></script>
+  <script src="sfx.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

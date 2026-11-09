@@ -6,6 +6,11 @@ DAILY SUMMARIES (what she logged each day):
 GOALS vs ACHIEVEMENTS (per-day comparison):
 {{GOALS_VS_ACHIEVEMENTS}}
 
+FOCUS TIMER DATA (computed facts for the same week; may say no data):
+{{FOCUS_SUMMARY}}
+
+Use these numbers in Patterns and Areas for Improvement when they help; never invent focus statistics.
+
 PRODUCE the review with exactly these sections:
 
 1. **📈 Completion Rate** — what fraction of set goals were achieved this week? Give an overall percentage and a one-line verdict (crushing it / on track / needs attention / falling behind).

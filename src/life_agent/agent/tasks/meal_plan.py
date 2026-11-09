@@ -1,5 +1,6 @@
 """~7:00 AM IST — vegetarian fat-loss meal plan (email + appended to
 the 'Weight Loss Plan — 83 → 53 kg' Notion page)."""
+from life_agent import briefs
 from life_agent import config
 from life_agent import dates
 from life_agent.agent import llm
@@ -39,8 +40,10 @@ def run():
             f"- Lunch is {lunch} as required by today's rotation\n"
             "- Fully vegetarian, concise and skimmable"
         ),
+        grounded_in=prompt,
     )
     print(plan)
+    briefs.save("meal_plan", plan)
 
     outbound.send_prompt_email(
         "morning", f"Today's meal plan — {dates.day_label(d)} 🥗", plan

@@ -125,11 +125,20 @@ def _section_range(blocks, heading_contains: str):
             break
     if start is None:
         return None, []
+    # Template headings start with an emoji (🌅 🌙 ✍️ 📋 📊). The text WE write into a section has its own headings and
+    # dividers, so for those sections the end is the next emoji heading, not the first divider (which used to leave old
+    # content behind and stack a copy of the briefing on every re-run).
+    template_style = not _block_text(blocks[start])[:1].isalnum()
     body = []
     for b in blocks[start + 1:]:
-        if b.get("type") in ("heading_2", "divider"):
+        if b.get("type") == "heading_2" and (not template_style or not _block_text(b)[:1].isalnum()):
+            break
+        if not template_style and b.get("type") == "divider":
             break
         body.append(b)
+    if template_style:
+        while body and body[-1].get("type") == "divider":     # keep the separator that sits before the next section
+            body.pop()
     return start, body
 
 
@@ -281,10 +290,15 @@ def write_brain_dump(content: str):
 def append_to_database(database_id: str, properties: dict) -> str:
     """Create a new row in any Notion database with the given properties.
     Returns the new page id."""
-    page = _req("POST", "/pages", json={
-        "parent": {"database_id": database_id},
-        "properties": properties,
-    })
+    try:
+        page = _req("POST", "/pages", json={"parent": {"database_id": database_id}, "properties": properties})
+    except RuntimeError as err:
+        # Some of our config ids are DATA SOURCE ids (the same id the /data_sources/.../query calls use). Notion answers
+        # 404 "Could not find database" when such an id is used as a database parent (this broke the metrics rows).
+        if "404" not in str(err) and "validation_error" not in str(err):
+            raise
+        page = _req("POST", "/pages", json={"parent": {"type": "data_source_id", "data_source_id": database_id},
+                                            "properties": properties})
     return page["id"]
 
 

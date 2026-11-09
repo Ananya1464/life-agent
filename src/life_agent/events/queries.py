@@ -21,9 +21,14 @@ def get_focus_sessions(date_iso: str) -> list[dict]:
     if not events_file.exists():
         return []
 
-    # Load all events
-    events = store.load_all()
+    return sessions_from_events(store.load_all(), date_iso)
 
+
+def sessions_from_events(events: list[dict], date_iso: str) -> list[dict]:
+    """Build focus sessions for one date from an in-memory list of events.
+
+    Pure function: used for the local event store and for events read back from Notion.
+    """
     # Filter to focus events for this date
     focus_events = [
         e for e in events
