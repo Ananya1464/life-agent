@@ -1,0 +1,36 @@
+# Lifebot on your phone: set these in Vercel → Project → Settings → Environment Variables.
+# Names only. Put the real values in Vercel, never in this file.
+
+# The address of your deployed app, without a trailing slash
+APP_URL=https://your-lifebot.vercel.app
+
+# Microsoft sign-in (from the app registration you create in the Microsoft Entra admin center)
+MS_CLIENT_ID=
+MS_CLIENT_SECRET=
+# Only this Microsoft account may use the app
+ALLOWED_EMAIL=you@outlook.com
+
+# A long random string that encrypts the sign-in cookie (any 40+ characters)
+SESSION_SECRET=
+
+# Where the vault lives inside OneDrive (your Desktop is backed up to OneDrive)
+VAULT_PATH=Desktop/ananya/ANANYA-OS
+TIMEZONE=Asia/Kolkata
+
+# Phone push: the SAME topic your desktop Lifebot uses (Lifebot → Reminders → Notifications)
+NTFY_TOPIC=
+# NTFY_SERVER=https://ntfy.sh
+# NTFY_TOKEN=
+
+# Chat (same keys and models as the desktop agent's .env)
+GEMINI_API_KEY=
+GEMINI_MODEL=
+NVIDIA_API_KEY=
+NVIDIA_MODEL=
+LLM_PROVIDER=gemini
+LLM_FALLBACK_PROVIDER=nvidia
+
+# --- local testing only (never set these on Vercel) ---
+# VAULT_LOCAL_DIR=C:\path\to\a\COPY\of\ANANYA-OS
+# DEV_NO_AUTH=1
+# LIFEBOT_INSECURE_COOKIES=1

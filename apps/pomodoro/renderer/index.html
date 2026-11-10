@@ -2,16 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pixel Pomodoro</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+  <title>Avocado Timer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="window-container">
-    <!-- Log Path Selector Button -->
-    <button class="log-path-btn interactive-area" id="btn-select-log" title="Select Log Markdown File">
-      📁 log
-    </button>
-
     <!-- Centered Kawaii Pixel-Art Avocado (~224x266 within 266x322) -->
     <svg class="avocado-svg" viewBox="0 0 266 322" width="266" height="322" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
       <defs>
@@ -25,6 +21,7 @@
       <ellipse cx="133" cy="292" rx="76" ry="10" fill="#0c123d" opacity="0.22" />
 
       <!-- Sprouts on Top of Avocado -->
+      <g class="sprouts">
       <!-- Left Leaf -->
       <path d="M 124 24 H 132 V 28 H 130 V 46 H 126 V 28 H 124 Z" fill="#0c123d" />
       <path d="M 112 30 H 124 V 36 H 122 V 42 H 116 V 36 H 112 Z" fill="#0c123d" />
@@ -39,6 +36,7 @@
       <rect x="146" y="34" width="2" height="2" fill="#a9e23d" />
       <!-- Stem Base -->
       <rect x="130" y="44" width="6" height="6" fill="#0c123d" />
+      </g>
 
       <!-- Outer Navy Border (#0c123d) -->
       <!-- Pear shape profile from y=48 to y=284 -->
@@ -132,13 +130,18 @@
       <rect x="178" y="226" width="2" height="2" fill="#d9c34e" opacity="0.6" />
 
       <!-- Kawaii Face Features (Eyes, Cheeks, Mouth) -->
-      <!-- Left Eye: 12x12 Navy Square with 4x4 White Highlight -->
-      <rect x="104" y="112" width="12" height="14" fill="#0c123d" />
-      <rect x="105" y="113" width="4" height="5" fill="#ffffff" />
-      
-      <!-- Right Eye: 12x12 Navy Square with 4x4 White Highlight -->
-      <rect x="150" y="112" width="12" height="14" fill="#0c123d" />
-      <rect x="151" y="113" width="4" height="5" fill="#ffffff" />
+      <!-- Eyes (blink as a group) -->
+      <g class="eyes">
+        <rect x="104" y="112" width="12" height="14" fill="#0c123d" />
+        <rect x="105" y="113" width="4" height="5" fill="#ffffff" />
+        <rect x="150" y="112" width="12" height="14" fill="#0c123d" />
+        <rect x="151" y="113" width="4" height="5" fill="#ffffff" />
+        <!-- Excited extras: second sparkle highlight, shown only while celebrating -->
+        <g class="eyes-excited">
+          <rect x="111" y="119" width="3" height="3" fill="#ffffff" />
+          <rect x="157" y="119" width="3" height="3" fill="#ffffff" />
+        </g>
+      </g>
 
       <!-- Left Cheek: Rosy Pink Square (#ff6584) -->
       <rect x="94" y="126" width="10" height="8" fill="#ff6584" />
@@ -146,12 +149,60 @@
       <!-- Right Cheek: Rosy Pink Square (#ff6584) -->
       <rect x="162" y="126" width="10" height="8" fill="#ff6584" />
 
-      <!-- Tiny Navy Mouth (#0c123d) -->
-      <rect x="130" y="124" width="6" height="3" fill="#0c123d" />
+      <!-- Happy pixel smile (default) -->
+      <g class="mouth-happy">
+        <rect x="124" y="122" width="4" height="3" fill="#0c123d" />
+        <rect x="128" y="125" width="10" height="3" fill="#0c123d" />
+        <rect x="138" y="122" width="4" height="3" fill="#0c123d" />
+      </g>
+
+      <!-- Hungry open mouth with tongue and a drool drop (celebration only) -->
+      <g class="mouth-hungry">
+        <rect x="124" y="121" width="18" height="3" fill="#0c123d" />
+        <rect x="122" y="124" width="22" height="9" fill="#0c123d" />
+        <rect x="126" y="133" width="14" height="3" fill="#0c123d" />
+        <rect x="127" y="128" width="12" height="5" fill="#ff6584" class="tongue" />
+        <rect x="131" y="127" width="4" height="2" fill="#ff9bb0" class="tongue" />
+        <rect x="144" y="127" width="4" height="4" fill="#9fe8ff" class="drool" />
+        <rect x="145" y="131" width="2" height="3" fill="#9fe8ff" class="drool" />
+      </g>
+
+      <!-- Twinkling sparkles around the head (celebration only) -->
+      <g class="sparkles">
+        <path d="M 70 88 h 4 v 4 h 4 v 4 h -4 v 4 h -4 v -4 h -4 v -4 h 4 z" fill="#ffd23f" class="sparkle s1" />
+        <path d="M 196 100 h 4 v 4 h 4 v 4 h -4 v 4 h -4 v -4 h -4 v -4 h 4 z" fill="#ffffff" class="sparkle s2" />
+        <path d="M 62 140 h 3 v 3 h 3 v 3 h -3 v 3 h -3 v -3 h -3 v -3 h 3 z" fill="#ff6584" class="sparkle s3" />
+      </g>
+
+      <!-- Snack thought bubble: a slice of toast (celebration only) -->
+      <g class="snack">
+        <rect x="204" y="52" width="48" height="40" fill="#0c123d" />
+        <rect x="206" y="54" width="44" height="36" fill="#ffffff" />
+        <rect x="196" y="96" width="6" height="6" fill="#0c123d" /><rect x="197" y="97" width="4" height="4" fill="#ffffff" />
+        <rect x="190" y="104" width="4" height="4" fill="#0c123d" /><rect x="191" y="105" width="2" height="2" fill="#ffffff" />
+        <rect x="214" y="60" width="28" height="24" fill="#0c123d" />
+        <rect x="216" y="62" width="24" height="20" fill="#e9b45a" />
+        <rect x="219" y="65" width="18" height="14" fill="#f6d28a" />
+        <rect x="222" y="70" width="2" height="2" fill="#c98a2f" /><rect x="230" y="73" width="2" height="2" fill="#c98a2f" />
+      </g>
 
       <!-- Pit Rim Navy Ring (108x108 px circle outline at center 133, 206) -->
       <circle cx="133" cy="206" r="54" fill="none" stroke="#0c123d" stroke-width="4" />
     </svg>
+
+    <!-- Lifebot-managed controls: minimize, hide, open the app (hidden when running standalone) -->
+    <div class="widget-controls interactive-area" id="widget-controls">
+      <button class="wc-btn" id="wc-home" title="Open Lifebot" aria-label="Open Lifebot">&#8962;</button>
+      <button class="wc-btn" id="wc-min" title="Minimize to a small icon" aria-label="Minimize to a small icon">&#8211;</button>
+      <button class="wc-btn" id="wc-hide" title="Hide to the tray" aria-label="Hide to the tray">&#215;</button>
+    </div>
+    <div class="mini-ui" id="mini-ui">
+      <button class="wc-btn expand" id="wc-expand" title="Expand" aria-label="Expand the timer">&#9633;</button>
+      <span class="mini-time" id="mini-time">READY</span>
+    </div>
+
+    <!-- Confetti layer (celebration only) -->
+    <canvas id="confetti-canvas" class="confetti-canvas" width="266" height="322"></canvas>
 
     <!-- 104x104 Circular Pit Interface (Centered at x=133, y=206 -> top=154, left=81) -->
     <div class="pit-container interactive-area" id="pit-container">
@@ -175,29 +226,31 @@
         <div class="timer-view" id="timer-view" style="display: none;">
           <span class="timer-task" id="timer-task-display">FOCUS</span>
           <div class="timer-digits" id="timer-countdown">25:00</div>
+          <div class="adj-row">
+            <button class="adj-btn" id="btn-minus" aria-label="Remove 5 minutes">&#8722;5</button>
+            <button class="adj-btn" id="btn-plus" aria-label="Add 5 minutes">+5</button>
+          </div>
           <span class="abandon-hint" id="btn-abandon" title="Abandon session (Ctrl+C)">^C abandon</span>
         </div>
 
         <!-- 3. ALARM STATE -->
         <div class="alarm-view" id="alarm-view" style="display: none;">
           <div class="alarm-title">TIME UP!</div>
-          <div class="alarm-sub">PRESS ENTER</div>
+          <div class="alarm-actions">
+            <button class="act-btn" id="btn-done" aria-label="Mark the task done">&#10003; DONE</button>
+            <button class="act-btn" id="btn-next" aria-label="Start the next task">&#9654; NEXT</button>
+          </div>
+          <button class="stop-btn" id="btn-stop-alarm" aria-label="Stop the alarm">&#9632; STOP</button>
         </div>
 
-        <!-- 4. LOG PROMPT STATE -->
-        <div class="log-view" id="log-view" style="display: none;">
-          <div class="log-status completed" id="log-status-badge">COMPLETED</div>
-          <div class="log-time-info" id="log-time-details">25m planned<br>25:00 elapsed</div>
-          <div class="log-actions">
-            <button class="log-btn" id="btn-log">LOG ↵</button>
-            <button class="log-btn skip" id="btn-skip">SKIP esc</button>
-          </div>
-        </div>
 
       </div>
     </div>
   </div>
 
+  <script src="logic.js"></script>
+  <script src="alarm.js"></script>
+  <script src="confetti.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

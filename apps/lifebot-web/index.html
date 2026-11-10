@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#397d22">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Lifebot">
+  <title>Lifebot</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="/icons/favicon-32.png">
+  <link rel="preload" href="/fonts/PressStart2P-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- sign-in -->
+  <section class="signin" id="signin" hidden>
+    <div class="signin-art" id="signin-art"></div>
+    <h1>Lifebot</h1>
+    <p class="muted">Your tasks, focus timer, reminders and briefings, from your Obsidian vault.</p>
+    <a class="primary big" href="/api/auth/login" id="signin-btn">Sign in with Microsoft</a>
+    <p class="error" id="signin-error" hidden></p>
+  </section>
+
+  <div class="shell" id="shell" hidden>
+    <header class="top">
+      <div class="brand"><img src="/icons/icon-192.png" alt="" width="30" height="30"><div><div class="brand-name">Lifebot</div><div class="brand-sub" id="today-label"></div></div></div>
+      <div class="top-right">
+        <span class="dot" id="sync-dot" title="Sync status"></span>
+        <button class="ghost tiny" id="refresh" type="button" aria-label="Refresh from your vault">SYNC</button>
+      </div>
+    </header>
+
+    <main class="views">
+      <!-- CHAT -->
+      <section class="view" id="view-chat" data-view="chat">
+        <div class="chat-log" id="chat-log" aria-live="polite"></div>
+        <div class="chips" id="chat-chips">
+          <button class="chip" type="button">What should I focus on today?</button>
+          <button class="chip" type="button">How has my focus been this week?</button>
+          <button class="chip" type="button">What's in today's meal plan?</button>
+          <button class="chip" type="button">Remind me in 30 minutes to stretch</button>
+        </div>
+        <form class="chat-form" id="chat-form">
+          <textarea id="chat-input" rows="1" placeholder="Ask Lifebot, or tell it what to do..." maxlength="2000"></textarea>
+          <button class="primary" id="chat-send" type="submit">Send</button>
+        </form>
+        <div class="row end"><button class="link" id="chat-clear" type="button">Clear chat</button></div>
+      </section>
+
+      <!-- TASKS -->
+      <section class="view" id="view-tasks" data-view="tasks">
+        <div class="view-head"><h1>Typewriter</h1><span class="muted small" id="tasks-summary"></span></div>
+        <div class="progress"><div class="progress-fill" id="tasks-progress"></div></div>
+        <form class="type-form" id="task-form">
+          <span class="caret">&gt;</span>
+          <input id="task-input" type="text" placeholder="Type a task, press Enter" maxlength="200" autocomplete="off" enterkeyhint="done">
+        </form>
+        <div class="task-list" id="task-list"></div>
+        <div class="row between foot">
+          <button class="link" id="md-toggle" type="button">Edit as text</button>
+          <span class="muted tiny-text">Saved to Tasks.md in your vault</span>
+        </div>
+        <div class="md-pane" id="md-pane" hidden>
+          <textarea id="md-editor" spellcheck="false"></textarea>
+          <div class="row between"><span class="muted tiny-text">- [ ] is a task, ## is a heading</span><button class="primary" id="md-save" type="button">Save</button></div>
+        </div>
+      </section>
+
+      <!-- FOCUS -->
+      <section class="view" id="view-focus" data-view="focus">
+        <div class="view-head"><h1>Focus</h1><span class="muted small" id="focus-stats"></span></div>
+        <div class="focus-wrap">
+          <div class="stage" id="stage" role="img" aria-label="Avocado timer">
+            <div class="pit" id="pit">
+              <div class="pit-task" id="focus-task">PICK A TASK</div>
+              <div class="pit-time" id="focus-time">25:00</div>
+              <div class="pit-phase" id="focus-phase">READY</div>
+            </div>
+          </div>
+          <select id="focus-select" aria-label="Task to focus on"></select>
+          <div class="focus-controls">
+            <button class="primary" id="focus-start" type="button">Start</button>
+            <button class="ghost" id="focus-pause" type="button" hidden>Pause</button>
+            <button class="ghost" id="focus-resume" type="button" hidden>Resume</button>
+            <button class="danger" id="focus-stop" type="button" hidden>Stop</button>
+            <button class="ghost small" id="focus-minus" type="button" hidden aria-label="Remove 5 minutes">-5</button>
+            <button class="ghost small" id="focus-plus" type="button" hidden aria-label="Add 5 minutes">+5</button>
+          </div>
+          <div class="focus-config muted">
+            <label>Focus <input type="number" id="cfg-focus" min="1" max="120" inputmode="numeric"> min</label>
+            <label>Break <input type="number" id="cfg-break" min="1" max="60" inputmode="numeric"> min</label>
+          </div>
+          <p class="muted tiny-text center" id="focus-note">Your phone gets a push when the time is up, even if it is locked.</p>
+        </div>
+      </section>
+
+      <!-- REMINDERS -->
+      <section class="view" id="view-reminders" data-view="reminders">
+        <div class="view-head"><h1>Reminders</h1><span class="muted small" id="rem-summary"></span></div>
+        <form class="card rem-form" id="rem-form">
+          <input id="rem-text" type="text" placeholder="Remind me to..." maxlength="200" required>
+          <div class="row wrap">
+            <input id="rem-at" type="datetime-local" required aria-label="When">
+            <select id="rem-repeat" aria-label="Repeat"><option value="none">Once</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option></select>
+          </div>
+          <div class="row wrap quick" id="rem-quick">
+            <button class="chip" type="button" data-min="30">+30 min</button>
+            <button class="chip" type="button" data-min="60">+1 hour</button>
+            <button class="chip" type="button" data-tomorrow="09:00">Tomorrow 9:00</button>
+            <button class="chip" type="button" data-tomorrow="21:00">Tomorrow 21:00</button>
+          </div>
+          <button class="primary" type="submit">Add reminder</button>
+        </form>
+        <div id="rem-list" class="rem-list"></div>
+        <div class="card push-card">
+          <div class="row between"><strong class="small" id="push-state">Phone push</strong><button class="ghost tiny" id="push-test" type="button">Send test</button></div>
+          <p class="muted tiny-text" id="push-help"></p>
+        </div>
+      </section>
+
+      <!-- BRIEFINGS + VAULT -->
+      <section class="view" id="view-briefings" data-view="briefings">
+        <div id="brief-index">
+          <div class="view-head"><h1>Briefings</h1><span class="muted small" id="brief-summary"></span></div>
+          <div class="pins">
+            <button class="pin" type="button" data-open="Dashboard/Life Agent Dashboard.md">Dashboard</button>
+            <button class="pin" type="button" data-open="Dashboard/Focus Log.md">Focus log</button>
+            <button class="pin" type="button" data-folder="02_EXECUTION/Goals">Goals</button>
+            <button class="pin" type="button" data-folder="">Vault</button>
+          </div>
+          <div id="brief-list" class="brief-list"></div>
+        </div>
+        <div id="note-view" hidden>
+          <div class="row between note-bar"><button class="ghost tiny" id="note-back" type="button">&lt; Back</button><span class="muted tiny-text" id="note-meta"></span></div>
+          <h1 class="note-title" id="note-title"></h1>
+          <div class="note-body md" id="note-body"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabs" aria-label="Sections">
+      <a href="#chat" data-tab="chat"><span class="ti">&#9670;</span>Chat</a>
+      <a href="#tasks" data-tab="tasks"><span class="ti">&#9998;</span>Tasks<span class="badge" id="tasks-badge"></span></a>
+      <a href="#focus" data-tab="focus"><span class="ti">&#9201;</span>Focus<span class="badge" id="focus-badge"></span></a>
+      <a href="#reminders" data-tab="reminders"><span class="ti">&#9650;</span>Remind<span class="badge" id="rem-badge"></span></a>
+      <a href="#briefings" data-tab="briefings"><span class="ti">&#9776;</span>Briefs</a>
+    </nav>
+  </div>
+
+  <!-- task editor sheet -->
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet-panel card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <h2 id="sheet-title">Edit task</h2>
+      <input id="sheet-input" type="text" maxlength="200">
+      <div class="row wrap">
+        <button class="primary" id="sheet-save" type="button">Save</button>
+        <button class="ghost" id="sheet-focus" type="button">Focus on it</button>
+        <button class="danger" id="sheet-delete" type="button">Delete</button>
+        <button class="link" id="sheet-cancel" type="button">Cancel</button>
+      </div>
+      <p class="error" id="sheet-error" hidden></p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="/lib/pomodoro.js"></script>
+  <script src="/avocado-art.js"></script>
+  <script src="/md.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

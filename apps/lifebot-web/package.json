@@ -1,0 +1,11 @@
+{
+  "name": "lifebot-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Lifebot on your phone: an installable web app that reads and edits your Obsidian vault in OneDrive.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node dev-server.js",
+    "test": "node --test test/server.test.js"
+  }
+}
