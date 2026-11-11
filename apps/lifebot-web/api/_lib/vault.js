@@ -23,6 +23,16 @@ function clean(rel, { forWrite = false } = {}) {
   return p;
 }
 
+/** Microsoft's own error text for a failed Graph response, trimmed for logs. */
+async function graphDetail(r) {
+  try {
+    const t = await r.text();
+    if (!t) return '';
+    try { const j = JSON.parse(t); return ` ${j.error && j.error.code || ''}: ${j.error && j.error.message || t}`.slice(0, 300); }
+    catch { return ` ${t}`.slice(0, 300); }
+  } catch { return ''; }
+}
+
 function conflict() {
   return httpError(409, 'This file changed on another device. Reloaded the latest version; try again.', { conflict: true });
 }
@@ -49,7 +59,7 @@ class GraphVault {
     const p = clean(rel);
     const meta = await this.call(this.itemUrl(p));
     if (meta.status === 404) return null;
-    if (!meta.ok) throw httpError(502, `OneDrive could not open ${p} (${meta.status})`);
+    if (!meta.ok) throw httpError(502, `OneDrive could not open ${this.itemUrl(p)} (${meta.status})${await graphDetail(meta)}`);
     const item = await meta.json();
     if (item.folder) throw httpError(400, `${p} is a folder`);
     const dl = item['@microsoft.graph.downloadUrl'];
@@ -86,7 +96,7 @@ class GraphVault {
     for (let page = 0; url && page < 10; page++) {
       const r = await this.call(url);
       if (r.status === 404) return [];
-      if (!r.ok) throw httpError(502, `OneDrive could not list ${p || 'the vault'} (${r.status})`);
+      if (!r.ok) throw httpError(502, `OneDrive could not list ${p || 'the vault'} (${r.status})${await graphDetail(r)}`);
       const j = await r.json();
       for (const it of j.value || []) out.push({ name: it.name, modified: it.lastModifiedDateTime, size: it.size, isFolder: !!it.folder });
       url = j['@odata.nextLink'] || null;
