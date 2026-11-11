@@ -1,0 +1,42 @@
+name: Lifebot phone reminders
+
+# Lightweight cloud pings only -- no laptop needed, no agent run, no API cost.
+# Fires at the same times as the real briefing tasks (see .github/workflows/agent.yml)
+# and just nudges your phone via ntfy that it's time, so you remember to open
+# Lifebot (desktop, when it's on, generates the real content; the phone app can
+# also answer in chat from the live vault).
+
+on:
+  schedule:
+    - cron: "30 1 * * *"   # meal_plan
+    - cron: "30 2 * * *"   # ai_edge
+    - cron: "0 16 * * *"   # evening_checkin
+    - cron: "15 16 * * *"  # goal_planner
+    - cron: "30 16 * * *"  # tomorrow_planner
+    - cron: "45 16 * * *"  # set_reminders
+    - cron: "30 14 * * 0"  # weekly_review (Sunday)
+  workflow_dispatch:  # lets you fire a test ping manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Work out which reminder this is and send it
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          case "${{ github.event.schedule }}" in
+            "30 1 * * *")  TITLE="Meal plan time";       BODY="Your meal plan briefing is due. Open Lifebot to generate or check it." ;;
+            "30 2 * * *")  TITLE="AI edge time";         BODY="Your AI edge briefing is due. Open Lifebot to generate or check it." ;;
+            "0 16 * * *")  TITLE="Evening check-in";     BODY="Time for your evening check-in. Open Lifebot." ;;
+            "15 16 * * *") TITLE="Goal planning time";   BODY="Time to review your goals. Open Lifebot." ;;
+            "30 16 * * *") TITLE="Plan tomorrow";        BODY="Time to plan tomorrow. Open Lifebot." ;;
+            "45 16 * * *") TITLE="Set reminders";        BODY="Time to set today's reminders. Open Lifebot." ;;
+            "30 14 * * 0") TITLE="Weekly review";        BODY="Your weekly review is due. Open Lifebot." ;;
+            *)             TITLE="Lifebot test ping";    BODY="Manual test from GitHub Actions." ;;
+          esac
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "::warning::NTFY_TOPIC secret is not set -- skipping push"
+            exit 0
+          fi
+          curl -sS -X POST "https://ntfy.sh/$NTFY_TOPIC" -H "Title: $TITLE" -H "Tags: bell" -d "$BODY"
